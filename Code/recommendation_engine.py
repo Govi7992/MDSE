@@ -1,6 +1,6 @@
 import yfinance as yf
 import pandas as pd
-from typing import Dict, List
+from typing import Dict, List, Optional
 import numpy as np
 import requests
 from textblob import TextBlob
@@ -31,7 +31,7 @@ class RecommendationEngine:
         }
         self.newsapi = NewsApiClient(api_key="efaf1927918946c297fbec474b5758a3")
 
-    def _get_sp500_tickers(self) -> Dict:
+    def _get_sp500_tickers(self) -> Dict[str, Dict[str, any]]:
         """Get S&P 500 stocks and their market data"""
         try:
             # Get S&P 500 data using yfinance
@@ -59,7 +59,7 @@ class RecommendationEngine:
             print(f"Error fetching S&P 500 data: {e}")
             return {}
 
-    def get_recommendations(self, risk_profile: str) -> Dict:
+    def get_recommendations(self, risk_profile: str) -> Dict[str, any]:
         """Generate stock and bond recommendations based on risk profile"""
         try:
             # Normalize risk profile
@@ -272,3 +272,116 @@ class RecommendationEngine:
             return "Market sentiment is mildly negative, indicating some market uncertainty."
         else:
             return "Market sentiment is neutral, suggesting balanced market conditions."
+
+    def generate_recommendations(self, risk_profile: dict, market_data: dict) -> dict:
+        """
+        Generate investment recommendations based on risk profile and market data.
+        
+        Args:
+            risk_profile (dict): User's risk profile containing 'profile' and 'score'
+            market_data (dict): Current market data for available assets
+        
+        Returns:
+            dict: Recommendations including allocations and specific recommendations
+        """
+        try:
+            if not risk_profile or 'profile' not in risk_profile:
+                raise ValueError("Invalid risk profile")
+            if not market_data:
+                raise ValueError("Market data is required")
+
+            profile_type = risk_profile['profile']
+            if profile_type not in self.risk_allocations:
+                raise ValueError(f"Unsupported risk profile: {profile_type}")
+
+            # Get basic allocations based on risk profile
+            allocations = self._calculate_portfolio_allocations(profile_type)
+
+            # Filter suitable assets based on risk profile
+            filtered_assets = self._filter_assets_by_risk(market_data, risk_profile)
+
+            # Generate specific recommendations
+            specific_recommendations = self._generate_specific_recommendations(
+                allocations,
+                market_data,
+                risk_profile
+            )
+
+            # Add market analysis and sentiment
+            for rec in specific_recommendations:
+                news_sentiment = self.fetch_news(rec['symbol'])
+                rec['sentiment'] = news_sentiment.get('sentiment', 'neutral')
+                rec['news'] = news_sentiment.get('articles', [])
+
+            return {
+                'allocations': allocations,
+                'specific_recommendations': specific_recommendations
+            }
+
+        except Exception as e:
+            print(f"Error generating recommendations: {e}")
+            return {
+                'allocations': self._get_default_allocations(),
+                'specific_recommendations': []
+            }
+
+    def _calculate_portfolio_allocations(self, profile_type: str) -> dict:
+        """Calculate portfolio allocations based on risk profile."""
+        return self.risk_allocations.get(profile_type, self.risk_allocations['moderate'])
+
+    def _filter_assets_by_risk(self, market_data: dict, risk_profile: dict) -> list:
+        """Filter assets based on risk profile."""
+        filtered_assets = []
+        risk_score = risk_profile.get('score', 50)
+        
+        for symbol, data in market_data.items():
+            volatility = data.get('volatility', 0.5)
+            if (risk_score < 30 and volatility < 0.3) or \
+               (30 <= risk_score <= 70 and volatility < 0.5) or \
+               (risk_score > 70):
+                filtered_assets.append(symbol)
+        
+        return filtered_assets
+
+    def _generate_specific_recommendations(self, allocations: dict, market_data: dict, risk_profile: dict) -> list:
+        """Generate specific asset recommendations."""
+        recommendations = []
+        risk_score = risk_profile.get('score', 50)
+        
+        for asset_type, allocation in allocations.items():
+            suitable_assets = [
+                symbol for symbol, data in market_data.items()
+                if self._is_suitable_for_allocation(symbol, asset_type, data, risk_score)
+            ]
+            
+            for asset in suitable_assets[:3]:  # Top 3 recommendations per asset type
+                recommendations.append({
+                    'symbol': asset,
+                    'percentage': round(allocation / len(suitable_assets), 2),
+                    'rationale': self._get_recommendation_rationale(asset, asset_type, market_data[asset])
+                })
+        
+        return recommendations
+
+    def _is_suitable_for_allocation(self, symbol: str, asset_type: str, data: dict, risk_score: float) -> bool:
+        """Determine if an asset is suitable for a particular allocation type."""
+        if asset_type == 'stocks':
+            return data.get('volatility', 1) * 100 <= risk_score
+        elif asset_type == 'bonds':
+            return data.get('volatility', 1) * 100 <= 30
+        elif asset_type == 'etfs':
+            return True
+        return False
+
+    def _get_recommendation_rationale(self, symbol: str, asset_type: str, data: dict) -> str:
+        """Generate rationale for recommending an asset."""
+        volatility = data.get('volatility', 0.5)
+        return f"Recommended {symbol} as a {asset_type} investment with {'low' if volatility < 0.3 else 'moderate' if volatility < 0.6 else 'high'} volatility"
+
+    def _get_default_allocations(self) -> dict:
+        """Return default allocations for fallback."""
+        return {
+            'stocks': 0.4,
+            'bonds': 0.4,
+            'etfs': 0.2
+        }
