@@ -5,8 +5,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 class UserManager:
     def __init__(self):
-        self.users = {}  # Dictionary to store user data
-        self.sessions = {}  # Active sessions
+        self.users = {}  
+        self.sessions = {}  
 
     def register_user(self, username, password, email):
         if username in self.users:
