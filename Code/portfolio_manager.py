@@ -1,20 +1,38 @@
 from datetime import datetime
+from typing import Dict, Optional
+from recommendation_engine import RecommendationEngine
+from asset_db import AssetDB
+from market_data import MarketDataService
 
 class PortfolioManager:
     def __init__(self):
+        """Initialize portfolio manager with dashboard capabilities"""
         self.portfolios = {}
+        self.recommendation_engine = RecommendationEngine()
+        self.market_data = MarketDataService()
+        self.asset_db = AssetDB()
         
     def create_portfolio(self, user_id, name):
+        """Create a new portfolio"""
         if user_id not in self.portfolios:
             self.portfolios[user_id] = {}
             
         portfolio_id = len(self.portfolios[user_id]) + 1
-        self.portfolios[user_id][portfolio_id] = {
+        portfolio = {
             'name': name,
             'assets': {},
             'created_at': datetime.now(),
             'last_updated': datetime.now()
         }
+        
+        self.portfolios[user_id][portfolio_id] = portfolio
+        
+        # Store in AssetDB but don't depend on it
+        try:
+            self.asset_db.update_portfolio(user_id, portfolio)
+        except:
+            pass  # Continue even if storage fails
+        
         return portfolio_id
 
     def add_asset(self, user_id, portfolio_id, asset_data):
@@ -75,3 +93,31 @@ class PortfolioManager:
             total_value += current_price * asset['quantity']
 
         return total_value
+
+    def get_recommendations(self, user_id: str, portfolio_id: str) -> Dict:
+        """Get investment recommendations for portfolio"""
+        risk_profile = self.get_risk_profile(user_id)
+        market_data = self.market_data.get_current_market_data()
+        return self.recommendation_engine.generate_recommendations(risk_profile, market_data)
+        
+    def display_portfolio(self, user_id: str, portfolio_id: str) -> Dict:
+        """Get portfolio display data"""
+        if not self._validate_portfolio_access(user_id, portfolio_id):
+            return {}
+            
+        portfolio = self.portfolios[user_id][portfolio_id]
+        current_prices = self.market_data.get_current_market_data()
+        return {
+            'portfolio': portfolio,
+            'total_value': self.get_portfolio_value(user_id, portfolio_id, current_prices),
+            'last_updated': portfolio['last_updated']
+        }
+        
+    def generate_alert(self, user_id: str, portfolio_id: str) -> Optional[str]:
+        """Generate portfolio alerts based on market conditions"""
+        if not self._validate_portfolio_access(user_id, portfolio_id):
+            return None
+            
+        portfolio = self.portfolios[user_id][portfolio_id]
+        # Add alert generation logic
+        return None
