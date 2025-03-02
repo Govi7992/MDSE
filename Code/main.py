@@ -4,15 +4,22 @@ from portfolio_manager import PortfolioManager
 from market_data import MarketDataService
 from news_service import NewsService
 from recommendation_engine import RecommendationEngine
+from asset_db import AssetDB
+from user_support import UserSupport
 
 class FinancialAdvisorSystem:
     def __init__(self):
+        self.asset_db = AssetDB()  # Initialize in-memory storage
         self.user_manager = UserManager()
         self.risk_assessor = RiskAssessor()
         self.portfolio_manager = PortfolioManager()
         self.market_data = MarketDataService()
         self.news_service = NewsService()
         self.recommendation_engine = RecommendationEngine()
+        self.user_support = UserSupport()
+
+        # Share asset_db with components that need it
+        self.portfolio_manager.asset_db = self.asset_db
 
     def register_user(self, username, password, email):
         return self.user_manager.register_user(username, password, email)
@@ -48,7 +55,7 @@ def main():
         print(f"Risk Profile: {risk_profile}")
         print(f"Recommendations: {recommendations}")
 
-
+        # Fetch financial news
         news = system.get_financial_news()
         print("Financial News:")
         for article in news:
