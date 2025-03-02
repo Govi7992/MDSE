@@ -1,26 +1,77 @@
 import google.generativeai as genai
-from typing import Dict
+from typing import Dict, Optional
+from datetime import datetime
 
 class RiskAssessor:
     def __init__(self):
+        """Initialize RiskAssessor with risk profiles and LLM."""
+        # Risk profiles with score ranges
         self.risk_profiles = {
-            'conservative': (0, 20),
-            'moderate_conservative': (21, 40),
-            'moderate': (41, 60),
-            'moderate_aggressive': (61, 80),
+            'conservative': (0, 30),
+            'moderate_conservative': (31, 45),
+            'moderate': (46, 65),
+            'moderate_aggressive': (66, 80),
             'aggressive': (81, 100)
         }
-        self.user_profiles = {}
+        
+        # Risk assessment weights
         self.risk_weights = {
-            "investment_timeline": 0.25,
-            "risk_tolerance": 0.3,
-            "income_level": 0.2,
-            "investment_experience": 0.25
+            'investment_experience': 0.25,
+            'time_horizon': 0.25,
+            'risk_tolerance': 0.30,
+            'financial_goals': 0.20
         }
         
+        # Response score mappings
+        self.response_scores = {
+            # Investment Experience
+            'Beginner': 20,
+            'Intermediate': 50,
+            'Experienced': 80,
+            'Expert': 100,
+            
+            # Time Horizon
+            'Short-term': 20,
+            'Medium-term': 50,
+            'Long-term': 80,
+            'Very Long-term': 100,
+            
+            # Risk Tolerance
+            'Low': 20,
+            'Medium': 50,
+            'High': 80,
+            'Very High': 100,
+            
+            # Financial Goals
+            'Preservation': 20,
+            'Balanced Growth': 50,
+            'Growth': 80,
+            'Aggressive Growth': 100,
+            
+            # Agreement Scale
+            'Strongly Disagree': 0,
+            'Disagree': 25,
+            'Neutral': 50,
+            'Agree': 75,
+            'Strongly Agree': 100
+        }
+        
+        # Store user profiles
+        self.user_profiles = {}
+        
+        # Fallback questions
+        self.fallback_questions = [
+            "How comfortable are you with market volatility?",
+            "What is your primary investment goal?",
+            "How long do you plan to hold your investments?",
+            "How would you describe your investment knowledge?",
+            "What percentage of your savings are you willing to invest?"
+        ]
+        
+        # Initialize LLM
         try:
-            genai.configure(api_key="AIzaSyAl6NUnmxZYP4A8e6cyrQgseEjWIoKnOPk")
-            self.model = genai.GenerativeModel('gemini-pro')
+            genai.configure(api_key="AIzaSyBSMKG56NPzUzupcaGW86LyFsHEvox4NU8")
+            self.model = genai.GenerativeModel('gemini-1.5-pro')
         except Exception as e:
             print(f"Error initializing Gemini API: {e}")
             self.model = None
@@ -62,44 +113,56 @@ class RiskAssessor:
             question_index = len(previous_responses) % len(fallback_questions)
             return fallback_questions[question_index]
 
-    def assess_risk(self, user_id, responses):
-        # Calculate risk score (0-100)
-        total_score = 0
-        weights = {
-            'Strongly Disagree': 0,
-            'Disagree': 25,
-            'Neutral': 50,
-            'Agree': 75,
-            'Strongly Agree': 100
-        }
 
-        for response in responses.values():
-            total_score += weights.get(response, 50)
+    def assess_risk(self, user_id: str, responses: Dict) -> str:
+        """Assess risk profile based on user responses."""
+        try:
+            if not responses:
+                return 'moderate'
 
-        risk_score = total_score / len(responses)
+            total_score = 0
+            total_weight = 0
 
-        # Determine risk profile
-        risk_profile = 'moderate'  # default
-        for profile, (min_score, max_score) in self.risk_profiles.items():
-            if min_score <= risk_score <= max_score:
-                risk_profile = profile
-                break
+            for factor, response in responses.items():
+                if factor in self.risk_weights:
+                    weight = self.risk_weights[factor]
+                    score = self.response_scores.get(response, 50)
+                    
+                    # Adjust scores for specific responses
+                    if response == 'Experienced':
+                        score = 90
+                    elif response == 'High':
+                        score = 85
+                    elif response == 'Growth':
+                        score = 85
+                    
+                    total_score += score * weight
+                    total_weight += weight
 
-        # Store user profile
-        self.user_profiles[user_id] = {
-            'score': risk_score,
-            'profile': risk_profile,
-            'responses': responses
-        }
+            risk_score = total_score / total_weight if total_weight > 0 else 50
 
-        return risk_profile
-
-    def get_risk_profile(self, user_id):
-        if user_id in self.user_profiles:
-            profile = self.user_profiles[user_id]
-            return {
-                'score': profile['score'],
-                'profile': profile['profile'],
-                'responses': profile['responses']
+            # Store profile with timestamp
+            profile_data = {
+                'score': risk_score,
+                'responses': responses,
+                'timestamp': datetime.now().isoformat()
             }
-        return None
+
+            # Determine risk profile
+            for profile, (min_score, max_score) in self.risk_profiles.items():
+                if min_score <= risk_score <= max_score:
+                    profile_data['profile'] = profile
+                    self.user_profiles[user_id] = profile_data
+                    return profile
+
+            profile_data['profile'] = 'moderate'
+            self.user_profiles[user_id] = profile_data
+            return 'moderate'
+
+        except Exception as e:
+            print(f"Error assessing risk: {e}")
+            return 'moderate'
+
+    def get_risk_profile(self, user_id: str) -> Optional[Dict]:
+        """Get stored risk profile for a user."""
+        return self.user_profiles.get(user_id)
