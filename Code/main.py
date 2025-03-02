@@ -48,7 +48,7 @@ def main():
         print(f"Risk Profile: {risk_profile}")
         print(f"Recommendations: {recommendations}")
 
-        # Fetch financial news
+
         news = system.get_financial_news()
         print("Financial News:")
         for article in news:

@@ -17,7 +17,7 @@ class RiskAssessor:
             "income_level": 0.2,
             "investment_experience": 0.25
         }
-        # Initialize Gemini API
+        
         try:
             genai.configure(api_key="AIzaSyAl6NUnmxZYP4A8e6cyrQgseEjWIoKnOPk")
             self.model = genai.GenerativeModel('gemini-pro')

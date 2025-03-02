@@ -34,14 +34,14 @@ class RecommendationEngine:
     def _get_sp500_tickers(self) -> Dict[str, Dict[str, any]]:
         """Get S&P 500 stocks and their market data"""
         try:
-            # Get S&P 500 data using yfinance
+            
             sp500_data = {}
             tickers = [
-                'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META',  # Large Cap Growth
-                'BRK-B', 'JPM', 'JNJ', 'PG', 'V',         # Large Cap Value
-                'AMD', 'NVDA', 'PYPL', 'ADBE', 'CRM',     # Large Cap Growth Tech
-                'XOM', 'CVX', 'PFE', 'BAC', 'WMT'         # Large Cap Value
-            ]  # Add more tickers as needed
+                'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META',  
+                'BRK-B', 'JPM', 'JNJ', 'PG', 'V',         
+                'AMD', 'NVDA', 'PYPL', 'ADBE', 'CRM',     
+                'XOM', 'CVX', 'PFE', 'BAC', 'WMT'         
+            ] 
 
             for ticker in tickers:
                 stock = yf.Ticker(ticker)
@@ -62,7 +62,6 @@ class RecommendationEngine:
     def get_recommendations(self, risk_profile: str) -> Dict[str, any]:
         """Generate stock and bond recommendations based on risk profile"""
         try:
-            # Normalize risk profile
             if risk_profile in ['conservative', 'moderate_conservative']:
                 profile = 'conservative'
             elif risk_profile in ['moderate']:
@@ -70,10 +69,10 @@ class RecommendationEngine:
             else:
                 profile = 'aggressive'
 
-            # Get allocation strategy
+            
             allocation = self.risk_allocations[profile]
 
-            # Select stocks based on profile
+            
             recommendations = {
                 'description': f'Recommended {profile} investment strategy',
                 'allocation': allocation,
@@ -81,10 +80,10 @@ class RecommendationEngine:
                 'explanation': self._get_strategy_explanation(profile)
             }
 
-            # Calculate total allocation
+            
             total_allocation = sum(allocation.values())
             if total_allocation < 100:
-                # Adjust allocations to sum to 100%
+                
                 for key in allocation:
                     allocation[key] = (allocation[key] / total_allocation) * 100
 
@@ -98,24 +97,24 @@ class RecommendationEngine:
         stocks = []
         
         if profile == 'conservative':
-            # Conservative: Focus on large-cap value stocks and bonds
+            
             stocks = self._filter_stocks(
-                min_market_cap=100e9,  # $100B market cap
+                min_market_cap=100e9,  
                 max_beta=1.0,
                 min_dividend_yield=0.02
             )
             stocks.append({'ticker': 'BND', 'name': 'Vanguard Total Bond Market ETF', 'allocation': 50, 'reason': 'Stable bond investment'})
         elif profile == 'moderate':
-            # Moderate: Mix of growth stocks and bonds
+            
             stocks = self._filter_stocks(
-                min_market_cap=50e9,  # $50B market cap
+                min_market_cap=50e9,  
                 max_beta=1.5
             )
             stocks.append({'ticker': 'AGG', 'name': 'iShares Core U.S. Aggregate Bond ETF', 'allocation': 30, 'reason': 'Diversified bond exposure'})
         else:
-            # Aggressive: Growth stocks, higher beta
+            
             stocks = self._filter_stocks(
-                min_market_cap=10e9,  # $10B market cap
+                min_market_cap=10e9,  
                 min_beta=1.0
             )
             stocks.append({'ticker': 'HYG', 'name': 'iShares iBoxx $ High Yield Corporate Bond ETF', 'allocation': 10, 'reason': 'Higher yield potential'})
@@ -143,13 +142,12 @@ class RecommendationEngine:
 
     def _calculate_allocation(self, stock_data: Dict, position: int) -> float:
         """Calculate recommended allocation percentage for a stock"""
-        base_allocation = 5.0  # Base allocation percentage
-        market_cap_factor = min(stock_data['market_cap'] / 1e12, 2.0)  # Market cap factor
-        position_factor = 1.0 / (position + 1)  # Position factor
+        base_allocation = 5.0  
+        market_cap_factor = min(stock_data['market_cap'] / 1e12, 2.0)  
+        position_factor = 1.0 / (position + 1)  
         
         allocation = base_allocation * market_cap_factor * position_factor
-        return round(min(allocation, 15.0), 1)  # Cap at 15%
-
+        return round(min(allocation, 15.0), 1)  
     def _get_stock_reason(self, stock_data: Dict) -> str:
         """Generate reason for stock recommendation"""
         reasons = []
@@ -185,28 +183,28 @@ class RecommendationEngine:
     def fetch_news(self, ticker: str) -> List[Dict]:
         """Fetch recent news articles with sentiment analysis"""
         try:
-            # Get news from the last 7 days
+            
             from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
             
-            # Fetch news using NewsAPI
+            
             news = self.newsapi.get_everything(
                 q=f"{ticker} stock",
                 from_param=from_date,
                 language='en',
                 sort_by='relevancy',
-                page_size=5  # Limit to 5 most relevant articles
+                page_size=5  
             )
 
             articles = []
             for article in news.get('articles', []):
-                # Perform sentiment analysis on title and description
+                
                 text = f"{article['title']} {article['description']}"
                 sentiment = TextBlob(text).sentiment
                 
-                # Calculate sentiment score (-1 to 1)
+                
                 sentiment_score = sentiment.polarity
                 
-                # Determine sentiment category
+                
                 if sentiment_score > 0.1:
                     sentiment_category = "Positive"
                     sentiment_color = "text-success"
@@ -226,7 +224,7 @@ class RecommendationEngine:
                     'sentiment_score': round(sentiment_score, 2)
                 })
 
-            # Sort by sentiment score (most positive first)
+            
             return sorted(articles, key=lambda x: x['sentiment_score'], reverse=True)
 
         except Exception as e:
@@ -237,21 +235,21 @@ class RecommendationEngine:
         """Generate recommendations along with analyzed news articles"""
         recommendations = self.get_recommendations(risk_profile)
         
-        # Add market sentiment analysis
+        
         total_sentiment = 0
         article_count = 0
         
         for stock in recommendations['stock_recommendations']:
             stock['news'] = self.fetch_news(stock['ticker'])
             
-            # Calculate average sentiment for this stock
+            
             sentiments = [article['sentiment_score'] for article in stock['news']]
             if sentiments:
                 stock['avg_sentiment'] = round(sum(sentiments) / len(sentiments), 2)
                 total_sentiment += stock['avg_sentiment']
                 article_count += 1
         
-        # Add overall market sentiment
+        
         if article_count > 0:
             recommendations['market_sentiment'] = {
                 'score': round(total_sentiment / article_count, 2),
@@ -294,20 +292,20 @@ class RecommendationEngine:
             if profile_type not in self.risk_allocations:
                 raise ValueError(f"Unsupported risk profile: {profile_type}")
 
-            # Get basic allocations based on risk profile
+            
             allocations = self._calculate_portfolio_allocations(profile_type)
 
-            # Filter suitable assets based on risk profile
+            
             filtered_assets = self._filter_assets_by_risk(market_data, risk_profile)
 
-            # Generate specific recommendations
+            
             specific_recommendations = self._generate_specific_recommendations(
                 allocations,
                 market_data,
                 risk_profile
             )
 
-            # Add market analysis and sentiment
+            
             for rec in specific_recommendations:
                 news_sentiment = self.fetch_news(rec['symbol'])
                 rec['sentiment'] = news_sentiment.get('sentiment', 'neutral')
@@ -354,7 +352,7 @@ class RecommendationEngine:
                 if self._is_suitable_for_allocation(symbol, asset_type, data, risk_score)
             ]
             
-            for asset in suitable_assets[:3]:  # Top 3 recommendations per asset type
+            for asset in suitable_assets[:3]:  
                 recommendations.append({
                     'symbol': asset,
                     'percentage': round(allocation / len(suitable_assets), 2),
