@@ -11,7 +11,6 @@ class UserSupport:
     def submit_query(self, user_id: str, query: str) -> Dict:
         """Submit support query"""
         try:
-            # Implementation for handling support queries
             return {
                 'query_id': 'unique_id',
                 'status': 'submitted',
@@ -23,7 +22,6 @@ class UserSupport:
     def display_usercommunity(self) -> List[Dict]:
         """Get user community information"""
         try:
-            # Implementation for fetching community data
             return []
         except Exception as e:
             print(f"Error fetching community data: {e}")

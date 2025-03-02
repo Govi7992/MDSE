@@ -26,12 +26,11 @@ class PortfolioManager:
         }
         
         self.portfolios[user_id][portfolio_id] = portfolio
-        
-        # Store in AssetDB but don't depend on it
+
         try:
             self.asset_db.update_portfolio(user_id, portfolio)
         except:
-            pass  # Continue even if storage fails
+            pass
         
         return portfolio_id
 
@@ -119,5 +118,4 @@ class PortfolioManager:
             return None
             
         portfolio = self.portfolios[user_id][portfolio_id]
-        # Add alert generation logic
         return None

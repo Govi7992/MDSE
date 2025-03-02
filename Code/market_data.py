@@ -16,8 +16,7 @@ class MarketDataService:
             url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={self.api_key}'
             response = requests.get(url)
             data = response.json()
-            
-            # Check if we have valid data
+
             if 'Global Quote' in data and '05. price' in data['Global Quote']:
                 price = float(data['Global Quote']['05. price'])
                 return {'price': price}

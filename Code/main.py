@@ -9,7 +9,7 @@ from user_support import UserSupport
 
 class FinancialAdvisorSystem:
     def __init__(self):
-        self.asset_db = AssetDB()  # Initialize in-memory storage
+        self.asset_db = AssetDB()
         self.user_manager = UserManager()
         self.risk_assessor = RiskAssessor()
         self.portfolio_manager = PortfolioManager()
@@ -17,8 +17,6 @@ class FinancialAdvisorSystem:
         self.news_service = NewsService()
         self.recommendation_engine = RecommendationEngine()
         self.user_support = UserSupport()
-
-        # Share asset_db with components that need it
         self.portfolio_manager.asset_db = self.asset_db
 
     def register_user(self, username, password, email):
@@ -55,7 +53,6 @@ def main():
         print(f"Risk Profile: {risk_profile}")
         print(f"Recommendations: {recommendations}")
 
-        # Fetch financial news
         news = system.get_financial_news()
         print("Financial News:")
         for article in news:

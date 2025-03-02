@@ -12,18 +12,15 @@ class User:
         
     def login(self) -> bool:
         """User login method"""
-        # Implementation
         pass
         
     def signup(self) -> bool:
         """User signup method"""
-        # Implementation
         pass
         
     def send_alert(self, message: str) -> bool:
         """Send alert to user"""
         try:
-            # Implementation for sending alerts
             return True
         except Exception as e:
             print(f"Error sending alert: {e}")
@@ -31,8 +28,8 @@ class User:
 
 class UserManager:
     def __init__(self):
-        self.users = {}  # Dictionary to store user data
-        self.sessions = {}  # Active sessions
+        self.users = {} 
+        self.sessions = {}
 
     def register_user(self, username, password, email):
         if username in self.users:

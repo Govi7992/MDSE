@@ -5,7 +5,6 @@ from datetime import datetime
 class RiskAssessor:
     def __init__(self):
         """Initialize RiskAssessor with risk profiles and LLM."""
-        # Risk profiles with score ranges
         self.risk_profiles = {
             'conservative': (0, 30),
             'moderate_conservative': (31, 45),
@@ -14,7 +13,6 @@ class RiskAssessor:
             'aggressive': (81, 100)
         }
         
-        # Risk assessment weights
         self.risk_weights = {
             'investment_experience': 0.25,
             'time_horizon': 0.25,
@@ -22,33 +20,27 @@ class RiskAssessor:
             'financial_goals': 0.20
         }
         
-        # Response score mappings
         self.response_scores = {
-            # Investment Experience
             'Beginner': 20,
             'Intermediate': 50,
             'Experienced': 80,
             'Expert': 100,
             
-            # Time Horizon
             'Short-term': 20,
             'Medium-term': 50,
             'Long-term': 80,
             'Very Long-term': 100,
             
-            # Risk Tolerance
             'Low': 20,
             'Medium': 50,
             'High': 80,
             'Very High': 100,
             
-            # Financial Goals
             'Preservation': 20,
             'Balanced Growth': 50,
             'Growth': 80,
             'Aggressive Growth': 100,
             
-            # Agreement Scale
             'Strongly Disagree': 0,
             'Disagree': 25,
             'Neutral': 50,
@@ -56,10 +48,8 @@ class RiskAssessor:
             'Strongly Agree': 100
         }
         
-        # Store user profiles
         self.user_profiles = {}
         
-        # Fallback questions
         self.fallback_questions = [
             "How comfortable are you with market volatility?",
             "What is your primary investment goal?",
@@ -67,8 +57,7 @@ class RiskAssessor:
             "How would you describe your investment knowledge?",
             "What percentage of your savings are you willing to invest?"
         ]
-        
-        # Initialize LLM
+
         try:
             genai.configure(api_key="AIzaSyBSMKG56NPzUzupcaGW86LyFsHEvox4NU8")
             self.model = genai.GenerativeModel('gemini-1.5-pro')
@@ -78,11 +67,8 @@ class RiskAssessor:
 
     def generate_question(self, previous_responses: Dict) -> str:
         try:
-            # For the first question
             if not previous_responses:
                 return "To what extent do you agree or disagree with the following statement: Given my investment experience, economic context, social commitments, and personal resilience, I am comfortable with short-term market volatility in pursuit of long-term growth."
-            
-            # Create context from previous responses
             context = "\n".join([f"Q{i+1}: {resp}" for i, resp in enumerate(previous_responses.values())])
             
             prompt = f"""
@@ -94,11 +80,9 @@ class RiskAssessor:
             Return only the question text, without any additional formatting or context.
             """
 
-            print(f"Prompt sent to LLM: {prompt}")  # Debugging line
-
-            # Call the LLM to generate a question
+            print(f"Prompt sent to LLM: {prompt}")
             response = self.model.generate_content(prompt)
-            print(f"Response from LLM: {response}")  # Debugging line
+            print(f"Response from LLM: {response}") 
 
             return response.text.strip()
         except Exception as e:
@@ -127,8 +111,6 @@ class RiskAssessor:
                 if factor in self.risk_weights:
                     weight = self.risk_weights[factor]
                     score = self.response_scores.get(response, 50)
-                    
-                    # Adjust scores for specific responses
                     if response == 'Experienced':
                         score = 90
                     elif response == 'High':
@@ -141,14 +123,12 @@ class RiskAssessor:
 
             risk_score = total_score / total_weight if total_weight > 0 else 50
 
-            # Store profile with timestamp
             profile_data = {
                 'score': risk_score,
                 'responses': responses,
                 'timestamp': datetime.now().isoformat()
             }
 
-            # Determine risk profile
             for profile, (min_score, max_score) in self.risk_profiles.items():
                 if min_score <= risk_score <= max_score:
                     profile_data['profile'] = profile

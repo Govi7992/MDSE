@@ -6,7 +6,6 @@ class NewsService:
         """Initialize NewsService with API key and base URL."""
         self.api_key = "dad6b10bc28a47f3b68db8b75b07a311"
         self.base_url = "https://newsapi.org/v2"
-        # Initialize NewsApiClient with API key
         self.news_api = NewsApiClient(api_key=self.api_key)
 
     def get_financial_news(self, query: str = 'finance') -> List[Dict]:
@@ -41,5 +40,4 @@ class NewsService:
             return formatted_articles
         
         except Exception as e:
-            # Log and re-raise the exception to match test expectations
             raise Exception(f"Error fetching news: {e}")
