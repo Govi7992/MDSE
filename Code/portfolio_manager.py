@@ -14,6 +14,9 @@ class PortfolioManager:
         
     def create_portfolio(self, user_id, name):
         """Create a new portfolio"""
+        if not user_id:
+            raise ValueError("User ID cannot be empty")
+            
         if user_id not in self.portfolios:
             self.portfolios[user_id] = {}
             
@@ -82,13 +85,19 @@ class PortfolioManager:
 
     def get_portfolio_value(self, user_id, portfolio_id, current_prices):
         if not self._validate_portfolio_access(user_id, portfolio_id):
-            return 0
+            raise ValueError("Invalid portfolio access")
 
         portfolio = self.portfolios[user_id][portfolio_id]
         total_value = 0
 
         for asset in portfolio['assets'].values():
-            current_price = current_prices.get(asset['symbol'], 0)
+            symbol = asset['symbol']
+            if symbol not in current_prices:
+                continue
+                
+            price_data = current_prices[symbol]
+            # Handle both flat (direct price) and nested (with 'price' key) formats
+            current_price = price_data['price'] if isinstance(price_data, dict) else price_data
             total_value += current_price * asset['quantity']
 
         return total_value
@@ -119,3 +128,16 @@ class PortfolioManager:
             
         portfolio = self.portfolios[user_id][portfolio_id]
         return None
+
+    def calculate_performance(self, initial_value: float, current_value: float) -> Dict:
+        """Calculate portfolio performance metrics"""
+        if initial_value <= 0:
+            raise ValueError("Initial value must be greater than 0")
+            
+        profit_loss = current_value - initial_value
+        return_percentage = (profit_loss / initial_value) * 100
+        
+        return {
+            'return_percentage': return_percentage,
+            'profit_loss': profit_loss
+        }
