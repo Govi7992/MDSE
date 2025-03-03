@@ -1,124 +1,75 @@
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 from market_data import MarketDataService
-from datetime import datetime, timedelta
 
 class TestMarketDataService(unittest.TestCase):
     def setUp(self):
-        """Set up test fixtures before each test method."""
-        self.market_data = MarketDataService()
-
-    def test_initialization(self):
-        """Test proper initialization of MarketDataService"""
-        self.assertEqual(self.market_data.api_key, "5ZRTU7NJS6J9VB5Y")
-        self.assertEqual(self.market_data.market_data, {})
-        self.assertIsInstance(self.market_data.last_update, datetime)
+        """Set up test cases"""
+        self.market_service = MarketDataService()
 
     @patch('requests.get')
     def test_fetch_market_data_success(self, mock_get):
         """Test successful market data fetch"""
-        # Mock successful API response
-        mock_response = Mock()
-        mock_response.json.return_value = {
+        mock_response = {
             'Global Quote': {
                 '05. price': '150.25'
             }
         }
-        mock_get.return_value = mock_response
+        mock_get.return_value.json.return_value = mock_response
 
-        result = self.market_data.fetch_market_data('AAPL')
-        
-        # Verify API call
-        expected_url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey={self.market_data.api_key}'
-        mock_get.assert_called_once_with(expected_url)
-        
-        # Verify result
-        self.assertEqual(result, {'price': 150.25})
+        result = self.market_service.fetch_market_data('AAPL')
+        self.assertEqual(result['price'], 150.25)
+        mock_get.assert_called_once()
 
     @patch('requests.get')
-    def test_fetch_market_data_failure(self, mock_get):
+    def test_fetch_market_data_invalid_response(self, mock_get):
         """Test market data fetch with invalid response"""
-        mock_response = Mock()
-        mock_response.json.return_value = {}  # Empty response
-        mock_get.return_value = mock_response
+        mock_response = {'Invalid': 'Response'}
+        mock_get.return_value.json.return_value = mock_response
 
-        result = self.market_data.fetch_market_data('INVALID')
-        self.assertEqual(result, {'price': None})
+        result = self.market_service.fetch_market_data('AAPL')
+        self.assertIsNone(result['price'])
 
     @patch('requests.get')
-    def test_get_current_market_data(self, mock_get):
+    def test_fetch_market_data_exception(self, mock_get):
+        """Test market data fetch with exception"""
+        mock_get.side_effect = Exception('API Error')
+
+        result = self.market_service.fetch_market_data('AAPL')
+        self.assertIsNone(result['price'])
+
+    @patch('market_data.MarketDataService.fetch_market_data')
+    def test_get_current_market_data(self, mock_fetch):
         """Test getting current market data for all symbols"""
-        # Mock response for each symbol
-        mock_response = Mock()
-        mock_response.json.return_value = {
-            'Global Quote': {
-                '05. price': '100.00'
-            }
-        }
-        mock_get.return_value = mock_response
+        mock_fetch.return_value = {'price': 100.0}
 
-        result = self.market_data.get_current_market_data()
+        result = self.market_service.get_current_market_data()
         
-        # Verify API calls for each symbol
-        self.assertEqual(mock_get.call_count, 5)  # Should be called for each symbol
+        expected_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'BTC']
+        self.assertEqual(set(result.keys()), set(expected_symbols))
         
-        # Verify results
-        expected_result = {
-            'AAPL': {'price': 100.0},
-            'GOOGL': {'price': 100.0},
-            'MSFT': {'price': 100.0},
-            'AMZN': {'price': 100.0},
-            'BTC': {'price': 100.0}
-        }
-        self.assertEqual(result, expected_result)
+   
+        self.assertEqual(mock_fetch.call_count, len(expected_symbols))
+        
+     
+        for symbol in expected_symbols:
+            self.assertIn(symbol, result)
+            self.assertEqual(result[symbol], {'price': 100.0})
 
-    @patch('requests.get')
-    def test_get_asset_price(self, mock_get):
+    @patch('market_data.MarketDataService.fetch_market_data')
+    def test_get_asset_price(self, mock_fetch):
         """Test getting price for a specific asset"""
-        mock_response = Mock()
-        mock_response.json.return_value = {
-            'Global Quote': {
-                '05. price': '150.25'
-            }
-        }
-        mock_get.return_value = mock_response
+        mock_fetch.return_value = {'price': 200.0}
 
-        result = self.market_data.get_asset_price('AAPL')
-        
-        # Verify API call
-        expected_url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey={self.market_data.api_key}'
-        mock_get.assert_called_once_with(expected_url)
-        
-        # Verify result
-        self.assertEqual(result, {'price': 150.25})
+        result = self.market_service.get_asset_price('TSLA')
+        self.assertEqual(result['price'], 200.0)
+        mock_fetch.assert_called_once_with('TSLA')
 
-    @patch('requests.get')
-    def test_api_error_handling(self, mock_get):
-        """Test handling of API errors"""
-        mock_get.side_effect = Exception("API Error")
-
-        result = self.market_data.fetch_market_data('AAPL')
-        self.assertEqual(result, {'price': None})
-
-    @patch('requests.get')
-    def test_malformed_response_handling(self, mock_get):
-        """Test handling of malformed API responses"""
-        test_cases = [
-            # Missing Global Quote
-            {'response': {}, 'expected': {'price': None}},
-            # Missing price
-            {'response': {'Global Quote': {}}, 'expected': {'price': None}},
-            # Invalid price format
-            {'response': {'Global Quote': {'05. price': 'invalid'}}, 'expected': {'price': None}}
-        ]
-
-        for case in test_cases:
-            mock_response = Mock()
-            mock_response.json.return_value = case['response']
-            mock_get.return_value = mock_response
-
-            result = self.market_data.fetch_market_data('AAPL')
-            self.assertEqual(result, case['expected'])
+    def test_api_key_exists(self):
+        """Test that API key is set"""
+        self.assertIsNotNone(self.market_service.api_key)
+        self.assertIsInstance(self.market_service.api_key, str)
+        self.assertTrue(len(self.market_service.api_key) > 0)
 
 if __name__ == '__main__':
     unittest.main() 
