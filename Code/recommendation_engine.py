@@ -17,7 +17,7 @@ class RecommendationEngine:
                 'cash': 20
             },
             'moderate': {
-                'large_cap_growth': 30,
+                'large_c    ap_growth': 30,
                 'bonds': 30,
                 'mid_cap': 20,
                 'cash': 20
@@ -29,7 +29,7 @@ class RecommendationEngine:
                 'cash': 10
             }
         }
-        self.newsapi = NewsApiClient(api_key="efaf1927918946c297fbec474b5758a3")
+        self.newsapi = NewsApiClient(api_key="dad6b10bc28a47f3b68db8b75b07a311")
 
     def _get_sp500_tickers(self) -> Dict[str, Dict[str, any]]:
         """Get S&P 500 stocks and their market data"""
@@ -58,27 +58,39 @@ class RecommendationEngine:
             print(f"Error fetching S&P 500 data: {e}")
             return {}
 
-    def get_recommendations(self, risk_profile: str) -> Dict[str, any]:
+    def get_recommendations(self, risk_profile: str) -> Dict:
         """Generate stock and bond recommendations based on risk profile"""
         try:
+            # Normalize risk profile
             if risk_profile in ['conservative', 'moderate_conservative']:
                 profile = 'conservative'
             elif risk_profile in ['moderate']:
                 profile = 'moderate'
             else:
                 profile = 'aggressive'
+
+            # Get allocation strategy
             allocation = self.risk_allocations[profile]
+
+            # Calculate total allocation
+            total_allocation = sum(allocation.values())
+            print(f"Initial total allocation for {profile}: {total_allocation}")
+
+            if total_allocation != 100:
+                # Adjust allocations to sum to 100%
+                for key in allocation:
+                    allocation[key] = (allocation[key] / total_allocation) * 100
+                print(f"Normalized allocations for {profile}: {allocation}")
+
+            # Select stocks based on profile
             recommendations = {
                 'description': f'Recommended {profile} investment strategy',
                 'allocation': allocation,
                 'stock_recommendations': self._get_stock_recommendations(profile),
                 'explanation': self._get_strategy_explanation(profile)
             }
-            total_allocation = sum(allocation.values())
-            if total_allocation < 100:
-                for key in allocation:
-                    allocation[key] = (allocation[key] / total_allocation) * 100
 
+            print(f"Generated recommendations: {recommendations}")
             return recommendations
         except Exception as e:
             print(f"Error generating recommendations: {e}")
@@ -122,7 +134,7 @@ class RecommendationEngine:
                 filtered_stocks.append({
                     'ticker': ticker,
                     'name': data['name'],
-                    'allocation': self._calculate_allocation(data, len(filtered_stocks)),
+                    'allocation': 0,  # Initialize with 0, will normalize later
                     'reason': self._get_stock_reason(data)
                 })
 
@@ -130,12 +142,17 @@ class RecommendationEngine:
 
     def _calculate_allocation(self, stock_data: Dict, position: int) -> float:
         """Calculate recommended allocation percentage for a stock"""
-        base_allocation = 5.0 
-        market_cap_factor = min(stock_data['market_cap'] / 1e12, 2.0) 
-        position_factor = 1.0 / (position + 1) 
+        # Base allocation inversely proportional to position (earlier stocks get higher allocation)
+        position_factor = 1.0 / (position + 1)
         
-        allocation = base_allocation * market_cap_factor * position_factor
-        return round(min(allocation, 15.0), 1) 
+        # Market cap factor (larger companies get slightly higher allocation)
+        market_cap_factor = min(stock_data['market_cap'] / 1e12, 2.0)
+        
+        # Calculate raw allocation
+        raw_allocation = position_factor * market_cap_factor * 20.0  # Increased base multiplier
+        
+        # Cap individual allocations at 25%
+        return round(min(raw_allocation, 25.0), 1)
 
     def _get_stock_reason(self, stock_data: Dict) -> str:
         """Generate reason for stock recommendation"""
