@@ -11,16 +11,16 @@ from dotenv import load_dotenv
 import json
 import asyncio
 
-# Load environment variables
+
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
-app.secret_key = os.urandom(24)  # Change this to a random secret key
+CORS(app)  
+app.secret_key = os.urandom(24)  
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
-# Initialize components
+
 risk_assessor = RiskAssessor()
 user_manager = UserManager()
 recommendation_engine = RecommendationEngine()
@@ -33,7 +33,7 @@ def index():
 def login():
     if request.method == 'POST':
         if request.is_json:
-            # Handle Google Sign-In
+            
             token = request.json.get('token')
             try:
                 idinfo = id_token.verify_oauth2_token(
@@ -49,7 +49,7 @@ def login():
             except ValueError as e:
                 return jsonify({'error': str(e)}), 400
         else:
-            # Handle regular login
+            
             email = request.form.get('email')
             password = request.form.get('password')
             if user_manager.verify_user(email, password):
@@ -57,7 +57,7 @@ def login():
                 return redirect(url_for('questionnaire'))
             return render_template('login.html', error="Invalid credentials")
     
-    # For GET requests, render the login page with Google client ID
+    
     return render_template('login.html', google_client_id=os.getenv('GOOGLE_CLIENT_ID'))
 
 @app.route('/signup', methods=['GET', 'POST'])
@@ -97,7 +97,7 @@ def assess_risk():
     risk_profile = risk_assessor.assess_risk(user_id, responses)
     stored_profile = risk_assessor.get_risk_profile(user_id)
     
-    # Update user's risk profile
+    
     success = user_manager.update_risk_profile(user_id, risk_profile)
     print(f"Updated risk profile for {user_id}: {risk_profile}, Success: {success}")
     
