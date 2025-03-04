@@ -17,7 +17,6 @@ class RiskAssessor:
             "income_level": 0.2,
             "investment_experience": 0.25
         }
-        # Initialize Gemini API
         try:
             genai.configure(api_key="AIzaSyB6DsbdssfBkq6iKB2OZ3fOyjyUhV2OdxY")
             self.model = genai.GenerativeModel('gemini-pro')
@@ -27,11 +26,9 @@ class RiskAssessor:
 
     def generate_question(self, previous_responses: Dict) -> str:
         try:
-            # For the first question
             if not previous_responses:
                 return "To what extent do you agree or disagree with the following statement: Given my investment experience, economic context, social commitments, and personal resilience, I am comfortable with short-term market volatility in pursuit of long-term growth."
             
-            # Create context from previous responses
             context = "\n".join([f"Q{i+1}: {resp}" for i, resp in enumerate(previous_responses.values())])
             
             prompt = f"""
@@ -43,27 +40,25 @@ class RiskAssessor:
             Return only the question text, without any additional formatting or context.
             """
 
-            print(f"Prompt sent to LLM: {prompt}")  # Debugging line
+            print(f"Prompt sent to LLM: {prompt}") 
 
-            # Call the LLM to generate a question
             response = self.model.generate_content(prompt)
-            print(f"Response from LLM: {response}")  # Debugging line
+            print(f"Response from LLM: {response}") 
 
             return response.text.strip()
         except Exception as e:
             print(f"Error generating question: {e}")
             fallback_questions = [
-                "How comfortable are you with market volatility?",
-                "What is your primary investment goal?",
-                "How long do you plan to hold your investments?",
-                "How would you describe your investment knowledge?",
-                "What percentage of your savings are you willing to invest?",
+                "To what extent do you agree or disagree with the following statement: I am comfortable making investment decisions that could significantly impact my financial future, even if it means navigating uncertain economic conditions, managing emotional stress, and adapting to changing market trends.",
+                "To what extent do you agree or disagree with the following statement: I prioritize long-term financial growth over short-term stability, even if it means accepting potential losses in the short run.",
+                "To what extent do you agree or disagree with the following statement: I have the knowledge and experience to assess investment risks independently and adjust my strategy accordingly.",
+                "To what extent do you agree or disagree with the following statement: During periods of market downturns, I remain confident in my investment choices and avoid making impulsive financial decisions based on fear or uncertainty.",
+                "To what extent do you agree or disagree with the following statement: I am willing to allocate a significant portion of my disposable income toward high-risk, high-reward investments, even if it means sacrificing some financial security in the short term.",
             ]
             question_index = len(previous_responses) % len(fallback_questions)
             return fallback_questions[question_index]
 
     def assess_risk(self, user_id, responses):
-        # Calculate risk score (0-100)
         total_score = 0
         weights = {
             'Strongly Disagree': 0,
@@ -78,14 +73,12 @@ class RiskAssessor:
 
         risk_score = total_score / len(responses)
 
-        # Determine risk profile
-        risk_profile = 'moderate'  # default
+        risk_profile = 'moderate' 
         for profile, (min_score, max_score) in self.risk_profiles.items():
             if min_score <= risk_score <= max_score:
                 risk_profile = profile
                 break
 
-        # Store user profile
         self.user_profiles[user_id] = {
             'score': risk_score,
             'profile': risk_profile,

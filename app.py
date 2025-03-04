@@ -121,7 +121,7 @@ def recommendations():
     
     user_id = session['username']
     print(f"Checking risk profile for user: {user_id}")
-    print(f"All users: {user_manager.users}")  # Debug line
+    print(f"All users: {user_manager.users}")
     
     risk_profile = user_manager.get_user_profile(user_id)
     print(f"Retrieved risk profile: {risk_profile}")

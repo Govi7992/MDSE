@@ -8,10 +8,6 @@ class MarketDataService:
         self.last_update = datetime.now()
 
     def fetch_market_data(self, symbol: str) -> dict:
-        """
-        Fetch market data for a given symbol.
-        Returns a dictionary with price information.
-        """
         try:
             url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={self.api_key}'
             response = requests.get(url)
@@ -28,7 +24,6 @@ class MarketDataService:
             return {'price': None}
 
     def get_current_market_data(self) -> dict:
-        """Get current market data for all tracked symbols."""
         symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'BTC']
         current_data = {}
         
@@ -38,5 +33,4 @@ class MarketDataService:
         return current_data
 
     def get_asset_price(self, symbol: str) -> dict:
-        """Get current price for a specific asset."""
         return self.fetch_market_data(symbol)

@@ -32,7 +32,6 @@ class RecommendationEngine:
         self.newsapi = NewsApiClient(api_key="dad6b10bc28a47f3b68db8b75b07a311")
 
     def _get_sp500_tickers(self) -> Dict[str, Dict[str, any]]:
-        """Get S&P 500 stocks and their market data"""
         try:
             sp500_data = {}
             tickers = [
@@ -59,9 +58,7 @@ class RecommendationEngine:
             return {}
 
     def get_recommendations(self, risk_profile: str) -> Dict:
-        """Generate stock and bond recommendations based on risk profile"""
         try:
-            # Normalize risk profile
             if risk_profile in ['conservative', 'moderate_conservative']:
                 profile = 'conservative'
             elif risk_profile in ['moderate']:
@@ -69,20 +66,16 @@ class RecommendationEngine:
             else:
                 profile = 'aggressive'
 
-            # Get allocation strategy
             allocation = self.risk_allocations[profile]
 
-            # Calculate total allocation
             total_allocation = sum(allocation.values())
             print(f"Initial total allocation for {profile}: {total_allocation}")
 
             if total_allocation != 100:
-                # Adjust allocations to sum to 100%
                 for key in allocation:
                     allocation[key] = (allocation[key] / total_allocation) * 100
                 print(f"Normalized allocations for {profile}: {allocation}")
 
-            # Select stocks based on profile
             recommendations = {
                 'description': f'Recommended {profile} investment strategy',
                 'allocation': allocation,
@@ -97,7 +90,6 @@ class RecommendationEngine:
             return self._get_default_recommendations()
 
     def _get_stock_recommendations(self, profile: str) -> List[Dict]:
-        """Get specific stock and bond recommendations based on risk profile"""
         stocks = []
         
         if profile == 'conservative':
@@ -123,7 +115,6 @@ class RecommendationEngine:
 
     def _filter_stocks(self, min_market_cap=0, max_beta=float('inf'), 
                     min_beta=0, min_dividend_yield=0) -> List[Dict]:
-        """Filter stocks based on criteria"""
         filtered_stocks = []
         
         for ticker, data in self.sp500_tickers.items():
@@ -134,28 +125,22 @@ class RecommendationEngine:
                 filtered_stocks.append({
                     'ticker': ticker,
                     'name': data['name'],
-                    'allocation': 0,  # Initialize with 0, will normalize later
+                    'allocation': 0,
                     'reason': self._get_stock_reason(data)
                 })
 
         return sorted(filtered_stocks, key=lambda x: x['allocation'], reverse=True)
 
     def _calculate_allocation(self, stock_data: Dict, position: int) -> float:
-        """Calculate recommended allocation percentage for a stock"""
-        # Base allocation inversely proportional to position (earlier stocks get higher allocation)
         position_factor = 1.0 / (position + 1)
-        
-        # Market cap factor (larger companies get slightly higher allocation)
+
         market_cap_factor = min(stock_data['market_cap'] / 1e12, 2.0)
         
-        # Calculate raw allocation
-        raw_allocation = position_factor * market_cap_factor * 20.0  # Increased base multiplier
+        raw_allocation = position_factor * market_cap_factor * 20.0 
         
-        # Cap individual allocations at 25%
         return round(min(raw_allocation, 25.0), 1)
 
     def _get_stock_reason(self, stock_data: Dict) -> str:
-        """Generate reason for stock recommendation"""
         reasons = []
         if stock_data['market_cap'] > 100e9:
             reasons.append("Large, stable company")
@@ -169,7 +154,6 @@ class RecommendationEngine:
         return ", ".join(reasons) or "Balanced investment choice"
 
     def _get_strategy_explanation(self, profile: str) -> str:
-        """Get detailed explanation of the investment strategy"""
         explanations = {
             'conservative': "This strategy focuses on stable, large-cap companies with strong dividend histories and lower volatility.",
             'moderate': "This balanced approach combines stable value stocks with growth opportunities while maintaining moderate risk levels.",
@@ -178,7 +162,6 @@ class RecommendationEngine:
         return explanations.get(profile, "Balanced investment strategy across different sectors")
 
     def _get_default_recommendations(self) -> Dict:
-        """Return default recommendations if error occurs"""
         return {
             'description': 'Default balanced investment strategy',
             'allocation': {'stocks': 60, 'bonds': 30, 'cash': 10},
@@ -187,7 +170,6 @@ class RecommendationEngine:
         }
 
     def fetch_news(self, ticker: str) -> List[Dict]:
-        """Fetch recent news articles with sentiment analysis"""
         try:
             from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
             news = self.newsapi.get_everything(
@@ -228,7 +210,6 @@ class RecommendationEngine:
             return []
 
     def get_recommendations_with_news(self, risk_profile: str) -> Dict:
-        """Generate recommendations along with analyzed news articles"""
         recommendations = self.get_recommendations(risk_profile)
         total_sentiment = 0
         article_count = 0
@@ -248,7 +229,6 @@ class RecommendationEngine:
         return recommendations
 
     def _get_sentiment_analysis(self, sentiment_score: float) -> str:
-        """Generate market sentiment analysis"""
         if sentiment_score > 0.3:
             return "Market sentiment is very positive, suggesting strong investor confidence."
         elif sentiment_score > 0.1:
@@ -261,16 +241,6 @@ class RecommendationEngine:
             return "Market sentiment is neutral, suggesting balanced market conditions."
 
     def generate_recommendations(self, risk_profile: dict, market_data: dict) -> dict:
-        """
-        Generate investment recommendations based on risk profile and market data.
-        
-        Args:
-            risk_profile (dict): User's risk profile containing 'profile' and 'score'
-            market_data (dict): Current market data for available assets
-        
-        Returns:
-            dict: Recommendations including allocations and specific recommendations
-        """
         try:
             if not risk_profile or 'profile' not in risk_profile:
                 raise ValueError("Invalid risk profile")
@@ -306,11 +276,9 @@ class RecommendationEngine:
             }
 
     def _calculate_portfolio_allocations(self, profile_type: str) -> dict:
-        """Calculate portfolio allocations based on risk profile."""
         return self.risk_allocations.get(profile_type, self.risk_allocations['moderate'])
 
     def _filter_assets_by_risk(self, market_data: dict, risk_profile: dict) -> list:
-        """Filter assets based on risk profile."""
         filtered_assets = []
         risk_score = risk_profile.get('score', 50)
         
@@ -324,7 +292,6 @@ class RecommendationEngine:
         return filtered_assets
 
     def _generate_specific_recommendations(self, allocations: dict, market_data: dict, risk_profile: dict) -> list:
-        """Generate specific asset recommendations."""
         recommendations = []
         risk_score = risk_profile.get('score', 50)
         
@@ -344,7 +311,6 @@ class RecommendationEngine:
         return recommendations
 
     def _is_suitable_for_allocation(self, symbol: str, asset_type: str, data: dict, risk_score: float) -> bool:
-        """Determine if an asset is suitable for a particular allocation type."""
         if asset_type == 'stocks':
             return data.get('volatility', 1) * 100 <= risk_score
         elif asset_type == 'bonds':
@@ -354,12 +320,10 @@ class RecommendationEngine:
         return False
 
     def _get_recommendation_rationale(self, symbol: str, asset_type: str, data: dict) -> str:
-        """Generate rationale for recommending an asset."""
         volatility = data.get('volatility', 0.5)
         return f"Recommended {symbol} as a {asset_type} investment with {'low' if volatility < 0.3 else 'moderate' if volatility < 0.6 else 'high'} volatility"
 
     def _get_default_allocations(self) -> dict:
-        """Return default allocations for fallback."""
         return {
             'stocks': 0.4,
             'bonds': 0.4,

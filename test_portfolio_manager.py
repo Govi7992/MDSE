@@ -21,7 +21,6 @@ class TestPortfolioManager(unittest.TestCase):
         }
 
     def test_portfolio_creation(self):
-        """Test portfolio creation"""
         portfolio_id = self.portfolio_manager.create_portfolio(
             self.test_user_id,
             self.test_portfolio['name']
@@ -32,7 +31,6 @@ class TestPortfolioManager(unittest.TestCase):
         self.assertEqual(self.portfolio_manager.portfolios[self.test_user_id][portfolio_id]['name'], self.test_portfolio['name'])
 
     def test_asset_management(self):
-        """Test asset management operations"""
         portfolio_id = self.portfolio_manager.create_portfolio(
             self.test_user_id,
             self.test_portfolio['name']
@@ -69,7 +67,6 @@ class TestPortfolioManager(unittest.TestCase):
 
     @patch('market_data.MarketDataService')
     def test_portfolio_valuation(self, mock_market_data):
-        """Test portfolio valuation"""
         mock_market_data.return_value.get_current_market_data.return_value = {
             'AAPL': {'price': 160.00}
         }
@@ -98,7 +95,6 @@ class TestPortfolioManager(unittest.TestCase):
         self.assertEqual(value, 1600.00)  
 
     def test_portfolio_performance(self):
-        """Test portfolio performance calculation"""
         portfolio_id = self.portfolio_manager.create_portfolio(
             self.test_user_id,
             self.test_portfolio['name']
@@ -116,9 +112,7 @@ class TestPortfolioManager(unittest.TestCase):
         self.assertIn('return_percentage', performance)
         self.assertIn('profit_loss', performance)
 
-    def test_error_handling(self):
-        """Test error handling"""
-        
+    def test_error_handling(self):        
         with self.assertRaises(ValueError):
             self.portfolio_manager.get_portfolio_value(
                 self.test_user_id,

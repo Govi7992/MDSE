@@ -11,15 +11,12 @@ class User:
         self.name = name
         
     def login(self) -> bool:
-        """User login method"""
         pass
         
     def signup(self) -> bool:
-        """User signup method"""
         pass
         
     def send_alert(self, message: str) -> bool:
-        """Send alert to user"""
         try:
             return True
         except Exception as e:
@@ -71,7 +68,6 @@ class UserManager:
         return False
 
     def create_user(self, email, password):
-        """Create a new user with in-memory storage"""
         if email in self.users:
             return False
         
@@ -84,7 +80,6 @@ class UserManager:
         return True
 
     def verify_user(self, email, password):
-        """Verify user credentials from in-memory storage"""
         user_data = self.users.get(email)
         if not user_data:
             return False
