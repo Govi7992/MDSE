@@ -3,93 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Investment Recommendations</title>
+    <title>Your Investment Portfolio</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .portfolio-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+        .asset-card {
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .recommendation-card {
+            margin-bottom: 1rem;
+            border-left: 4px solid #007bff;
+        }
+        .buy-recommendation {
+            border-left-color: #28a745;
+        }
+        .sell-recommendation {
+            border-left-color: #dc3545;
+        }
+        .progress-bar {
+            transition: width 0.6s ease;
+        }
+        .stock-card {
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .news-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .news-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .sentiment-positive {
+            color: #28a745;
+        }
+        .sentiment-negative {
+            color: #dc3545;
+        }
+        .sentiment-neutral {
+            color: #6c757d;
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1>Your Investment Recommendations</h1>
-        
-        <div class="card mb-4">
-            <div class="card-body">
-                <h2 class="card-title">Strategy Overview</h2>
-                <p class="card-text">{{ recommendations.description }}</p>
-                <p class="card-text">{{ recommendations.explanation }}</p>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">Investment Portfolio Manager</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    </li>
+                </ul>
             </div>
         </div>
+    </nav>
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <h2 class="card-title">Market Sentiment</h2>
-                <p class="card-text">{{ recommendations.market_sentiment.analysis }}</p>
-                <p class="card-text">
-                    Overall Sentiment Score: 
-                    <span class="
-                        {% if recommendations.market_sentiment.score > 0.1 %}text-success
-                        {% elif recommendations.market_sentiment.score < -0.1 %}text-danger
-                        {% else %}text-secondary{% endif %}
-                    ">
-                        {{ recommendations.market_sentiment.score }}
-                    </span>
-                </p>
-            </div>
+    <div class="portfolio-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Your Investment Portfolio</h2>
+            <a href="{{ url_for('retake_assessment') }}" class="btn btn-warning">Retake Assessment</a>
         </div>
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <h2 class="card-title">Asset Allocation</h2>
-                <div class="row">
-                    {% for asset, percentage in recommendations.allocation.items() %}
-                    <div class="col-md-3 mb-3">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">{{ asset|replace('_', ' ')|title }}</h5>
-                                <p class="card-text">{{ percentage }}%</p>
-                            </div>
+        {% if recommendations %}
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h4>Risk Profile</h4>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Risk Tolerance:</strong> {{ recommendations.risk_tolerance }}</p>
+                            <p><strong>Investment Horizon:</strong> {{ recommendations.investment_horizon }}</p>
+                            <p><strong>Financial Goals:</strong> {{ recommendations.financial_goals|join(', ') }}</p>
                         </div>
                     </div>
-                    {% endfor %}
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h4>Asset Allocation</h4>
+                        </div>
+                        <div class="card-body">
+                            {% for asset, percentage in recommendations.asset_allocation.items() %}
+                                <div class="asset-card card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ asset }}</h5>
+                                        <div class="progress">
+                                            <div class="progress-bar" role="progressbar" 
+                                                data-width="{{ percentage }}"
+                                                aria-valuenow="{{ percentage }}" 
+                                                aria-valuemin="0" 
+                                                aria-valuemax="100">
+                                                {{ percentage }}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h4>Recommended Actions</h4>
+                        </div>
+                        <div class="card-body">
+                            {% for rec in recommendations.recommendations %}
+                                <div class="recommendation-card card {% if rec.action == 'Buy' %}buy-recommendation{% else %}sell-recommendation{% endif %}">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ rec.action }} {{ rec.asset }}</h5>
+                                        <p class="card-text">
+                                            Current: {{ rec.current_percentage|float }}%<br>
+                                            Target: {{ rec.target_percentage|float }}%<br>
+                                            Adjustment: {{ rec.adjustment|float }}%
+                                        </p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="card">
-            <div class="card-body">
-                <h2 class="card-title">Recommended Stocks</h2>
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Ticker</th>
-                                <th>Company Name</th>
-                                <th>Recommended Allocation</th>
-                                <th>Reason</th>
-                                <th>News</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for stock in recommendations.stock_recommendations %}
-                            <tr>
-                                <td>{{ stock.ticker }}</td>
-                                <td>{{ stock.name }}</td>
-                                <td>{{ stock.allocation }}%</td>
-                                <td>{{ stock.reason }}</td>
-                                <td>
-                                    <div class="news-container" style="max-height: 200px; overflow-y: auto;">
-                                        {% if stock.news %}
-                                            <p class="mb-2">
-                                                Average Sentiment: 
-                                                <span class="
-                                                    {% if stock.avg_sentiment > 0.1 %}text-success
-                                                    {% elif stock.avg_sentiment < -0.1 %}text-danger
-                                                    {% else %}text-secondary{% endif %}
-                                                ">
-                                                    {{ stock.avg_sentiment }}
-                                                </span>
-                                            </p>
-                                            <ul class="list-unstyled">
+            <!-- Stock Recommendations Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Stock Recommendations</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Stock</th>
+                                    <th>Symbol</th>
+                                    <th>Recommended Allocation</th>
+                                    <th>Reason</th>
+                                    <th>News & Sentiment</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stock in recommendations.stock_recommendations %}
+                                <tr>
+                                    <td>{{ stock.name }}</td>
+                                    <td>{{ stock.ticker }}</td>
+                                    <td>{{ stock.allocation|float }}%</td>
+                                    <td>{{ stock.reason }}</td>
+                                    <td>
+                                        <div class="news-container">
+                                            {% if stock.news %}
+                                                <div class="mb-2">
+                                                    <strong>Average Sentiment:</strong>
+                                                    <span class="
+                                                        {% if stock.avg_sentiment|float > 0.1 %}sentiment-positive
+                                                        {% elif stock.avg_sentiment|float < -0.1 %}sentiment-negative
+                                                        {% else %}sentiment-neutral{% endif %}
+                                                    ">
+                                                        {{ "%.2f"|format(stock.avg_sentiment|float) }}
+                                                    </span>
+                                                </div>
                                                 {% for article in stock.news %}
-                                                <li class="mb-2">
+                                                <div class="news-item">
                                                     <a href="{{ article.url }}" target="_blank" class="text-decoration-none">
                                                         {{ article.title }}
                                                     </a>
@@ -97,26 +182,87 @@
                                                         <span class="text-muted">{{ article.date }}</span> |
                                                         <span class="{{ article.sentiment_color }}">{{ article.sentiment }}</span>
                                                     </div>
-                                                </li>
+                                                </div>
                                                 {% endfor %}
-                                            </ul>
-                                        {% else %}
-                                            <p class="text-muted">No recent news available</p>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                            {% else %}
+                                                <p class="text-muted">No recent news available</p>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="mt-4">
-            <a href="{{ url_for('questionnaire') }}" class="btn btn-primary">Retake Assessment</a>
-            <a href="{{ url_for('logout') }}" class="btn btn-danger ms-2">Logout</a>
-        </div>
+            <!-- Market Overview Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h4>Market Overview</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Market Indices</h5>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Index</th>
+                                        <th>Value</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for index in recommendations.market_indices %}
+                                    <tr>
+                                        <td>{{ index.name }}</td>
+                                        <td>{{ index.value }}</td>
+                                        <td class="{{ 'text-success' if index.change|float > 0 else 'text-danger' }}">
+                                            {{ index.change }}%
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Market Sentiment</h5>
+                            <p>{{ recommendations.market_sentiment.analysis }}</p>
+                            <div class="progress mb-3">
+                                <div class="progress-bar {{ 'bg-success' if recommendations.market_sentiment.score|float > 0.1 else 'bg-danger' if recommendations.market_sentiment.score|float < -0.1 else 'bg-secondary' }}" 
+                                     role="progressbar" 
+                                     data-width="{{ (recommendations.market_sentiment.score|float + 1) * 50 }}"
+                                     aria-valuenow="{{ recommendations.market_sentiment.score|float }}"
+                                     aria-valuemin="-1"
+                                     aria-valuemax="1">
+                                    {{ "%.2f"|format(recommendations.market_sentiment.score|float) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                No recommendations available. Please complete your risk assessment first.
+            </div>
+        {% endif %}
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set progress bar widths after page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const progressBars = document.querySelectorAll('.progress-bar');
+            progressBars.forEach(bar => {
+                const width = bar.getAttribute('data-width');
+                if (width) {
+                    bar.style.width = width + '%';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
