@@ -2,6 +2,10 @@ import hashlib
 import uuid
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from database import (
+    create_or_update_user, get_user_by_email, update_user_profile,
+    verify_user, get_user_risk_assessment, store_risk_assessment
+)
 
 class User:
     def __init__(self, username: str, password: str, email: str, name: str = None):
@@ -11,12 +15,15 @@ class User:
         self.name = name
         
     def login(self) -> bool:
+        """User login method"""
         pass
         
     def signup(self) -> bool:
+        """User signup method"""
         pass
         
     def send_alert(self, message: str) -> bool:
+        """Send alert to user"""
         try:
             return True
         except Exception as e:
@@ -25,8 +32,52 @@ class User:
 
 class UserManager:
     def __init__(self):
-        self.users = {} 
-        self.sessions = {}
+        pass
+
+    def create_user(self, email, password, user_data=None):
+        try:
+            if user_data is None:
+                user_data = {
+                    "email": email,
+                    "password": password
+                }
+            return create_or_update_user(user_data)
+        except Exception as e:
+            print(f"Error creating user: {e}")
+            return None
+
+    def verify_user(self, email, password):
+        return verify_user(email, password)
+
+    def get_user_profile(self, user_id):
+        assessment = get_user_risk_assessment(user_id)
+        if assessment:
+            return {
+                'risk_profile': assessment.get('profile'),
+                'score': assessment.get('score')
+            }
+        return None
+
+    def update_risk_profile(self, user_id, risk_profile):
+        try:
+            assessment_data = {
+                'profile': risk_profile,
+                'score': self._calculate_risk_score(risk_profile)
+            }
+            return store_risk_assessment(user_id, assessment_data)
+        except Exception as e:
+            print(f"Error updating risk profile: {e}")
+            return None
+
+    def _calculate_risk_score(self, risk_profile):
+        risk_scores = {
+            'conservative': 20,
+            'moderate_conservative': 40,
+            'moderate': 60,
+            'moderate_aggressive': 80,
+            'aggressive': 100
+        }
+        return risk_scores.get(risk_profile, 50)
 
     def register_user(self, username, password, email):
         if username in self.users:
@@ -65,33 +116,4 @@ class UserManager:
             if user['user_id'] == user_id:
                 user['profile'].update(profile_data)
                 return True
-        return False
-
-    def create_user(self, email, password):
-        if email in self.users:
-            return False
-        
-        user = User(username=email, password=password, email=email)
-        self.users[email] = {
-            'user': user,
-            'password': password,
-            'risk_profile': None
-        }
-        return True
-
-    def verify_user(self, email, password):
-        user_data = self.users.get(email)
-        if not user_data:
-            return False
-        return user_data['password'] == password
-
-    def get_user_profile(self, user_id):
-        if user_id in self.users:
-            return self.users[user_id].get('risk_profile')
-        return None
-
-    def update_risk_profile(self, user_id, risk_profile):
-        if user_id in self.users:
-            self.users[user_id]['risk_profile'] = risk_profile
-            return True
         return False
