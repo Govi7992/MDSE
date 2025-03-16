@@ -1,5 +1,6 @@
 import google.generativeai as genai
 from typing import Dict
+from database import store_risk_assessment, get_user_risk_assessment
 
 class RiskAssessor:
     def __init__(self):
@@ -17,18 +18,21 @@ class RiskAssessor:
             "income_level": 0.2,
             "investment_experience": 0.25
         }
+        # Initialize Gemini API
         try:
             genai.configure(api_key="AIzaSyB6DsbdssfBkq6iKB2OZ3fOyjyUhV2OdxY")
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel('gemini-1.5-pro')
         except Exception as e:
             print(f"Error initializing Gemini API: {e}")
             self.model = None
 
     def generate_question(self, previous_responses: Dict) -> str:
         try:
+            # For the first question
             if not previous_responses:
                 return "To what extent do you agree or disagree with the following statement: Given my investment experience, economic context, social commitments, and personal resilience, I am comfortable with short-term market volatility in pursuit of long-term growth."
             
+            # Create context from previous responses
             context = "\n".join([f"Q{i+1}: {resp}" for i, resp in enumerate(previous_responses.values())])
             
             prompt = f"""
@@ -40,10 +44,11 @@ class RiskAssessor:
             Return only the question text, without any additional formatting or context.
             """
 
-            print(f"Prompt sent to LLM: {prompt}") 
+            print(f"Prompt sent to LLM: {prompt}")  # Debugging line
 
+            # Call the LLM to generate a question
             response = self.model.generate_content(prompt)
-            print(f"Response from LLM: {response}") 
+            print(f"Response from LLM: {response}")  # Debugging line
 
             return response.text.strip()
         except Exception as e:
@@ -53,12 +58,12 @@ class RiskAssessor:
                 "To what extent do you agree or disagree with the following statement: I prioritize long-term financial growth over short-term stability, even if it means accepting potential losses in the short run.",
                 "To what extent do you agree or disagree with the following statement: I have the knowledge and experience to assess investment risks independently and adjust my strategy accordingly.",
                 "To what extent do you agree or disagree with the following statement: During periods of market downturns, I remain confident in my investment choices and avoid making impulsive financial decisions based on fear or uncertainty.",
-                "To what extent do you agree or disagree with the following statement: I am willing to allocate a significant portion of my disposable income toward high-risk, high-reward investments, even if it means sacrificing some financial security in the short term.",
-            ]
+                "To what extent do you agree or disagree with the following statement: I am willing to allocate a significant portion of my disposable income toward high-risk, high-reward investments, even if it means sacrificing some financial security in the short term."]
             question_index = len(previous_responses) % len(fallback_questions)
             return fallback_questions[question_index]
 
     def assess_risk(self, user_id, responses):
+        # Calculate risk score (0-100)
         total_score = 0
         weights = {
             'Strongly Disagree': 0,
@@ -73,26 +78,29 @@ class RiskAssessor:
 
         risk_score = total_score / len(responses)
 
-        risk_profile = 'moderate' 
+        # Determine risk profile
+        risk_profile = 'moderate'  # default
         for profile, (min_score, max_score) in self.risk_profiles.items():
             if min_score <= risk_score <= max_score:
                 risk_profile = profile
                 break
 
-        self.user_profiles[user_id] = {
+        assessment_data = {
             'score': risk_score,
             'profile': risk_profile,
-            'responses': responses
+            'responses': responses,
+            'risk_weights': self.risk_weights
         }
 
+        store_risk_assessment(user_id, assessment_data)
         return risk_profile
 
     def get_risk_profile(self, user_id):
-        if user_id in self.user_profiles:
-            profile = self.user_profiles[user_id]
+        assessment = get_user_risk_assessment(user_id)
+        if assessment:
             return {
-                'score': profile['score'],
-                'profile': profile['profile'],
-                'responses': profile['responses']
+                'score': assessment['score'],
+                'profile': assessment['profile'],
+                'responses': assessment['responses']
             }
         return None
