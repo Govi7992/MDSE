@@ -1,3 +1,4 @@
+
 let currentQuestionIndex = 0;
 let userResponses = {};
 const userId = 'user_' + Date.now();  // Generate a unique user ID
