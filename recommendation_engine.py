@@ -6,7 +6,8 @@ import requests
 from textblob import TextBlob
 from datetime import datetime, timedelta
 from newsapi import NewsApiClient
-from database import store_recommendations, get_user_recommendations
+import re
+from database import store_recommendations, get_user_recommendations, get_user_by_email, create_or_update_user
 
 class RecommendationEngine:
     def __init__(self):
@@ -73,36 +74,109 @@ class RecommendationEngine:
             return {}
 
     def get_recommendations(self, risk_profile: str) -> Dict:
-        """Generate stock and bond recommendations based on risk profile"""
+        """
+        Generate stock and bond recommendations based on risk profile
+        
+        OCL Constraints:
+        pre ValidRiskProfile: Set{'Conservative', 'Moderate', 'Aggressive'}->includes(risk_profile)
+        post RecommendationsMatchProfile: 
+            (risk_profile = 'Conservative' implies result.profile = 'Conservative') and
+            (risk_profile = 'Moderate' implies result.profile = 'Moderate') and
+            (risk_profile = 'Aggressive' implies result.profile = 'Aggressive')
+        post ValidAssetAllocation: 
+            result.asset_allocation->values()->sum() = 100 and
+            result.asset_allocation->values()->forAll(v | v >= 0)
+        post InvestmentAllocationConsistency:
+            result.investments->collect(i | i.allocation)->sum() = 100
+        """
         try:
+            # Pre-condition: ValidRiskProfile
+            valid_profiles = {'Conservative', 'Moderate', 'Aggressive'}
+            normalized_profile = None
+            
             # Normalize risk profile
-            if risk_profile in ['conservative', 'moderate_conservative']:
-                profile = 'conservative'
-            elif risk_profile in ['moderate']:
-                profile = 'moderate'
+            if isinstance(risk_profile, dict):
+                # Handle case where risk_profile is a dictionary
+                profile_type = risk_profile.get('profile', 'Moderate')
+                if isinstance(profile_type, str):
+                    if profile_type.lower() in ['conservative', 'moderate_conservative']:
+                        normalized_profile = 'Conservative'
+                    elif profile_type.lower() in ['moderate']:
+                        normalized_profile = 'Moderate'
+                    else:
+                        normalized_profile = 'Aggressive'
+                else:
+                    normalized_profile = 'Moderate'  # Default
             else:
-                profile = 'aggressive'
-
-            # Get allocation strategy
-            allocation = self.asset_classes[profile]
-
-            # Calculate total allocation
-            total_allocation = sum(allocation.values())
-            print(f"Initial total allocation for {profile}: {total_allocation}")
-
-            if total_allocation != 100:
-                # Adjust allocations to sum to 100%
-                for key in allocation:
-                    allocation[key] = (allocation[key] / total_allocation) * 100
-                print(f"Normalized allocations for {profile}: {allocation}")
-
-            # Select stocks based on profile
+                # Handle case where risk_profile is a string
+                if isinstance(risk_profile, str):
+                    if risk_profile.lower() in ['conservative', 'moderate_conservative']:
+                        normalized_profile = 'Conservative'
+                    elif risk_profile.lower() in ['moderate']:
+                        normalized_profile = 'Moderate'
+                    else:
+                        normalized_profile = 'Aggressive'
+                else:
+                    normalized_profile = 'Moderate'  # Default for non-string
+            
+            # Validate the normalized profile
+            if normalized_profile not in valid_profiles:
+                raise ValueError(f"Invalid risk profile: {risk_profile}")
+            
+            profile = normalized_profile
+            print(f"Processing recommendation for profile: {profile}")
+            
+            # Get specific stock recommendations based on profile
+            stock_recommendations = self._get_stock_recommendations(profile)
+            
+            # Post-condition: InvestmentAllocationConsistency
+            total_investment_allocation = sum(stock['allocation'] for stock in stock_recommendations)
+            if total_investment_allocation != 100:
+                # Normalize stock allocations to sum to 100
+                scaling_factor = 100 / total_investment_allocation
+                for stock in stock_recommendations:
+                    stock['allocation'] = round(stock['allocation'] * scaling_factor)
+                
+                # Fix any rounding errors
+                current_sum = sum(stock['allocation'] for stock in stock_recommendations)
+                if current_sum != 100:
+                    # Add or subtract the difference from the largest allocation
+                    stock_recommendations.sort(key=lambda x: x['allocation'], reverse=True)
+                    stock_recommendations[0]['allocation'] += (100 - current_sum)
+            
+            # Prepare asset allocation based on profile
+            asset_allocation = self._get_asset_allocation(profile)
+            
+            # Post-condition: ValidAssetAllocation
+            allocation_sum = sum(asset_allocation.values())
+            if allocation_sum != 100:
+                # Normalize asset allocations to sum to 100
+                scaling_factor = 100 / allocation_sum
+                for asset_class in asset_allocation:
+                    asset_allocation[asset_class] = round(asset_allocation[asset_class] * scaling_factor)
+                
+                # Fix any rounding errors
+                current_sum = sum(asset_allocation.values())
+                if current_sum != 100:
+                    # Find the largest allocation and adjust it
+                    largest_class = max(asset_allocation.items(), key=lambda x: x[1])[0]
+                    asset_allocation[largest_class] += (100 - current_sum)
+            
+            if any(v < 0 for v in asset_allocation.values()):
+                raise ValueError("Asset allocations cannot be negative")
+            
+            # Post-condition: RecommendationsMatchProfile
             recommendations = {
+                'profile': profile,  # This ensures the result profile matches the input
                 'description': f'Recommended {profile} investment strategy',
-                'allocation': allocation,
-                'stock_recommendations': self._get_stock_recommendations(profile),
-                'explanation': self._get_strategy_explanation(profile)
+                'asset_allocation': asset_allocation,
+                'investments': stock_recommendations,
+                'explanation': self._get_strategy_explanation(profile.lower()),
+                'timestamp': datetime.now().isoformat()
             }
+
+            # Add formatted display data for frontend
+            recommendations['display_data'] = self._format_for_display(recommendations)
 
             print(f"Generated recommendations: {recommendations}")
             return recommendations
@@ -111,165 +185,397 @@ class RecommendationEngine:
             return self._get_default_recommendations()
 
     def _get_stock_recommendations(self, profile: str) -> List[Dict]:
-        """Get specific stock and bond recommendations based on risk profile"""
+        """
+        Get specific stock and bond recommendations based on risk profile
+        
+        OCL Constraints:
+        post DiversifiedPortfolio: result->size() >= 3
+        post AllocationSumCorrect: result->collect(r | r.allocation)->sum() <= 100
+        """
         stocks = []
         
+        # Ensure we have different recommendations for each profile type
         if profile == 'Conservative':
-            # Conservative profile - focus on large, stable companies with dividends
-            filtered_stocks = self._filter_stocks(
-                min_market_cap=100e9,
-                max_beta=1.0,
-                min_dividend_yield=0.02
-            )
-            total_allocation = 40  # 40% in stocks for conservative
-            stocks = self._assign_allocations(filtered_stocks, total_allocation)
-            # Add bond ETF
-            stocks.append({
+            # Conservative profile - guaranteed recommendations
+            stocks = [
+                {
+                    'ticker': 'JNJ',
+                    'name': 'Johnson & Johnson',
+                    'allocation': 10,
+                    'reason': 'Large, stable company with strong dividend history'
+                },
+                {
+                    'ticker': 'PG',
+                    'name': 'Procter & Gamble',
+                    'allocation': 10,
+                    'reason': 'Consumer staples company with stable earnings'
+                },
+                {
+                    'ticker': 'KO',
+                    'name': 'Coca-Cola Company',
+                    'allocation': 8,
+                    'reason': 'Consistent dividend payer with low volatility'
+                },
+                {
                 'ticker': 'BND',
                 'name': 'Vanguard Total Bond Market ETF',
-                'allocation': 50,
-                'reason': 'Stable bond investment for conservative portfolio'
-            })
-            
+                    'allocation': 40,
+                    'reason': 'Broad exposure to U.S. investment-grade bonds'
+                },
+                {
+                    'ticker': 'VCSH',
+                    'name': 'Vanguard Short-Term Corporate Bond ETF',
+                    'allocation': 20,
+                    'reason': 'Short-term corporate bonds for income with lower interest rate risk'
+                },
+                {
+                    'ticker': 'MUB',
+                    'name': 'iShares National Muni Bond ETF',
+                    'allocation': 12,
+                    'reason': 'Tax-advantaged municipal bond exposure'
+                }
+            ]
         elif profile == 'Moderate':
-            # Moderate profile - mix of growth and stability
-            filtered_stocks = self._filter_stocks(
-                min_market_cap=50e9,
-                max_beta=1.5
-            )
-            total_allocation = 60  # 60% in stocks for moderate
-            stocks = self._assign_allocations(filtered_stocks, total_allocation)
-            # Add bond ETF
-            stocks.append({
+            # Moderate profile - guaranteed recommendations
+            stocks = [
+                {
+                    'ticker': 'AAPL',
+                    'name': 'Apple Inc.',
+                    'allocation': 12,
+                    'reason': 'Large tech company with strong balance sheet'
+                },
+                {
+                    'ticker': 'MSFT',
+                    'name': 'Microsoft Corporation',
+                    'allocation': 12,
+                    'reason': 'Diversified technology company with consistent growth'
+                },
+                {
+                    'ticker': 'V',
+                    'name': 'Visa Inc.',
+                    'allocation': 10,
+                    'reason': 'Financial services company with strong cash flow'
+                },
+                {
+                    'ticker': 'VTI',
+                    'name': 'Vanguard Total Stock Market ETF',
+                    'allocation': 16,
+                    'reason': 'Broad U.S. stock market exposure'
+                },
+                {
                 'ticker': 'AGG',
                 'name': 'iShares Core U.S. Aggregate Bond ETF',
                 'allocation': 30,
-                'reason': 'Balanced bond exposure for moderate portfolio'
-            })
-            
+                    'reason': 'Core bond holding for moderate portfolios'
+                },
+                {
+                    'ticker': 'IVV',
+                    'name': 'iShares Core S&P 500 ETF',
+                    'allocation': 10,
+                    'reason': 'Low-cost S&P 500 index exposure'
+                },
+                {
+                    'ticker': 'VEA',
+                    'name': 'Vanguard FTSE Developed Markets ETF',
+                    'allocation': 10,
+                    'reason': 'International developed markets exposure'
+                }
+            ]
         else:  # Aggressive
-            # Aggressive profile - focus on growth potential
-            filtered_stocks = self._filter_stocks(
-                min_market_cap=10e9,
-                min_beta=1.0
-            )
-            total_allocation = 80  # 80% in stocks for aggressive
-            stocks = self._assign_allocations(filtered_stocks, total_allocation)
-            # Add high-yield bond ETF
-            stocks.append({
+            # Aggressive profile - guaranteed recommendations
+            stocks = [
+                {
+                    'ticker': 'NVDA',
+                    'name': 'NVIDIA Corporation',
+                    'allocation': 15,
+                    'reason': 'High-growth technology company in AI and computing'
+                },
+                {
+                    'ticker': 'AMZN',
+                    'name': 'Amazon.com, Inc.',
+                    'allocation': 15,
+                    'reason': 'E-commerce and cloud computing leader with growth potential'
+                },
+                {
+                    'ticker': 'TSLA',
+                    'name': 'Tesla, Inc.',
+                    'allocation': 10,
+                    'reason': 'Electric vehicle pioneer with disruptive technology'
+                },
+                {
+                    'ticker': 'QQQ',
+                    'name': 'Invesco QQQ Trust (NASDAQ-100 Index)',
+                    'allocation': 20,
+                    'reason': 'Technology-focused growth ETF'
+                },
+                {
+                    'ticker': 'VWO',
+                    'name': 'Vanguard Emerging Markets ETF',
+                    'allocation': 15,
+                    'reason': 'Emerging markets exposure for higher growth potential'
+                },
+                {
+                    'ticker': 'VBK',
+                    'name': 'Vanguard Small-Cap Growth ETF',
+                    'allocation': 15,
+                    'reason': 'Small-cap growth companies with high return potential'
+                },
+                {
                 'ticker': 'HYG',
                 'name': 'iShares iBoxx $ High Yield Corporate Bond ETF',
                 'allocation': 10,
-                'reason': 'Higher yield potential for aggressive portfolio'
-            })
+                    'reason': 'Higher yield potential for aggressive portfolios'
+                }
+            ]
+        
+        # Post-condition: DiversifiedPortfolio
+        if len(stocks) < 3:
+            # Add default recommendations to ensure diversification
+            default_stocks = [
+                {
+                    'ticker': 'VTI',
+                    'name': 'Vanguard Total Stock Market ETF',
+                    'allocation': 5,
+                    'reason': 'Added for diversification'
+                },
+                {
+                    'ticker': 'BND',
+                    'name': 'Vanguard Total Bond Market ETF',
+                    'allocation': 5,
+                    'reason': 'Added for diversification'
+                },
+                {
+                    'ticker': 'VEA',
+                    'name': 'Vanguard FTSE Developed Markets ETF',
+                    'allocation': 5,
+                    'reason': 'Added for international exposure'
+                }
+            ]
+            
+            # Add only as many stocks as needed to reach minimum diversification
+            for i in range(min(3 - len(stocks), len(default_stocks))):
+                stocks.append(default_stocks[i])
+        
+        # Post-condition: AllocationSumCorrect
+        total_allocation = sum(stock['allocation'] for stock in stocks)
+        if total_allocation > 100:
+            # Normalize allocations to sum to 100
+            scaling_factor = 100 / total_allocation
+            for stock in stocks:
+                stock['allocation'] = round(stock['allocation'] * scaling_factor)
+            
+            # Fix any rounding errors to ensure sum is exactly 100
+            current_sum = sum(stock['allocation'] for stock in stocks)
+            if current_sum != 100:
+                # Add or subtract the difference from the largest allocation
+                stocks.sort(key=lambda x: x['allocation'], reverse=True)
+                stocks[0]['allocation'] += (100 - current_sum)
         
         return stocks
-
-    def _assign_allocations(self, stocks: List[Dict], total_allocation: float) -> List[Dict]:
-        """Assign allocation percentages to stocks"""
-        if not stocks:
-            return []
-            
-        # Sort stocks by market cap for weighting
-        stocks.sort(key=lambda x: x.get('market_cap', 0), reverse=True)
-        
-        # Calculate base allocation per stock
-        base_allocation = total_allocation / len(stocks)
-        
-        # Adjust allocations based on market cap weight
-        total_market_cap = sum(stock.get('market_cap', 0) for stock in stocks)
-        
-        for stock in stocks:
-            if total_market_cap > 0:
-                # Weight by market cap but keep within reasonable bounds
-                market_cap_weight = stock.get('market_cap', 0) / total_market_cap
-                allocation = base_allocation * (0.5 + 0.5 * market_cap_weight)  # Blend of equal weight and market cap weight
-            else:
-                allocation = base_allocation
-                
-            stock['allocation'] = round(allocation, 1)
-            
-            # Add reason based on stock characteristics
-            reasons = []
-            if stock.get('market_cap', 0) > 100e9:
-                reasons.append("Large, stable company")
-            if stock.get('dividend_yield', 0) > 0.02:
-                reasons.append("Good dividend yield")
-            if stock.get('beta', 1) < 1.0:
-                reasons.append("Lower volatility than market")
-            elif stock.get('beta', 1) > 1.2:
-                reasons.append("Higher growth potential")
-            
-            stock['reason'] = ", ".join(reasons) if reasons else "Balanced investment choice"
-        
-        return stocks
-
-    def _filter_stocks(self, min_market_cap=0, max_beta=float('inf'), 
-                    min_beta=0, min_dividend_yield=0) -> List[Dict]:
-        """Filter stocks based on criteria"""
-        filtered_stocks = []
-        
-        for ticker, data in self.sp500_tickers.items():
-            if (data['market_cap'] >= min_market_cap and
-                min_beta <= data['beta'] <= max_beta and
-                data['dividend_yield'] >= min_dividend_yield):
-                
-                filtered_stocks.append({
-                    'ticker': ticker,
-                    'name': data['name'],
-                    'market_cap': data['market_cap'],
-                    'beta': data['beta'],
-                    'dividend_yield': data['dividend_yield'],
-                    'reason': self._get_stock_reason(data)
-                })
-
-        return filtered_stocks[:10]  # Limit to top 10 stocks
-
-    def _calculate_allocation(self, stock_data: Dict, position: int) -> float:
-        """Calculate recommended allocation percentage for a stock"""
-        # Base allocation inversely proportional to position (earlier stocks get higher allocation)
-        position_factor = 1.0 / (position + 1)
-        
-        # Market cap factor (larger companies get slightly higher allocation)
-        market_cap_factor = min(stock_data['market_cap'] / 1e12, 2.0)
-        
-        # Calculate raw allocation
-        raw_allocation = position_factor * market_cap_factor * 20.0  # Increased base multiplier
-        
-        # Cap individual allocations at 25%
-        return round(min(raw_allocation, 25.0), 1)
-
-    def _get_stock_reason(self, stock_data: Dict) -> str:
-        """Generate reason for stock recommendation"""
-        reasons = []
-        if stock_data['market_cap'] > 100e9:
-            reasons.append("Large, stable company")
-        if stock_data['dividend_yield'] > 0.02:
-            reasons.append("Good dividend yield")
-        if stock_data['beta'] < 1.0:
-            reasons.append("Lower volatility than market")
-        elif stock_data['beta'] > 1.2:
-            reasons.append("Higher growth potential")
-            
-        return ", ".join(reasons) or "Balanced investment choice"
 
     def _get_strategy_explanation(self, profile: str) -> str:
         """Get detailed explanation of the investment strategy"""
         explanations = {
-            'conservative': "This strategy focuses on stable, large-cap companies with strong dividend histories and lower volatility.",
-            'moderate': "This balanced approach combines stable value stocks with growth opportunities while maintaining moderate risk levels.",
-            'aggressive': "This growth-oriented strategy focuses on companies with higher return potential, accepting higher volatility."
+            'conservative': "This conservative strategy focuses on capital preservation and income generation. It emphasizes stable, large-cap companies with strong dividend histories and lower volatility. A significant portion (60%) is allocated to bonds for stability, with the remaining invested in high-quality stocks. This approach is suitable for investors with a shorter time horizon or lower risk tolerance.",
+            
+            'moderate': "This balanced approach combines stable value stocks with growth opportunities while maintaining moderate risk levels. With a 40/60 split between bonds and stocks, this strategy aims to generate both income and capital appreciation. It includes exposure to large and mid-cap stocks, along with some international diversification. Suitable for investors with a medium-term time horizon who can tolerate some market fluctuations.",
+            
+            'aggressive': "This growth-oriented strategy focuses on companies and sectors with higher return potential, accepting higher volatility in pursuit of long-term capital appreciation. With a significant allocation to technology and growth stocks, along with emerging markets exposure, this approach aims to maximize returns over time. The limited bond allocation (20%) provides some stability. Suitable for investors with a long time horizon who can withstand significant market fluctuations."
         }
         return explanations.get(profile, "Balanced investment strategy across different sectors")
 
+    def _get_asset_allocation(self, profile: str) -> Dict:
+        """Get asset allocation for the given risk profile"""
+        if profile == 'Conservative':
+            return {
+                'Bonds': 60,
+                'Large Cap Stocks': 25,
+                'Mid Cap Stocks': 10,
+                'Small Cap Stocks': 3,
+                'International Stocks': 2,
+                'Commodities': 0
+            }
+        elif profile == 'Moderate':
+            return {
+                'Bonds': 40,
+                'Large Cap Stocks': 30,
+                'Mid Cap Stocks': 15,
+                'Small Cap Stocks': 10,
+                'International Stocks': 5,
+                'Commodities': 0
+            }
+        else:  # Aggressive
+            return {
+                'Bonds': 20,
+                'Large Cap Stocks': 30,
+                'Mid Cap Stocks': 25,
+                'Small Cap Stocks': 15,
+                'International Stocks': 10,
+                'Commodities': 0
+            }
+
+    def _format_for_display(self, recommendations: Dict) -> Dict:
+        """Format recommendations for easy display in UI"""
+        profile = recommendations.get('profile', 'Unknown')
+        asset_allocation = recommendations.get('asset_allocation', {})
+        investments = recommendations.get('investments', [])
+        
+        # Create allocation summary
+        allocation_summary = []
+        for asset_class, percentage in asset_allocation.items():
+            if percentage > 0:
+                allocation_summary.append({
+                    'name': asset_class,
+                    'percentage': percentage,
+                    'color': self._get_color_for_asset_class(asset_class)
+                })
+        
+        # Group investments by type
+        categorized_investments = {
+            'Stocks': [],
+            'ETFs': [],
+            'Bonds': []
+        }
+        
+        for investment in investments:
+            ticker = investment.get('ticker', '')
+            # Simple categorization based on ticker and name
+            if 'bond' in investment.get('name', '').lower() or ticker in ['BND', 'AGG', 'VCSH', 'MUB', 'HYG']:
+                categorized_investments['Bonds'].append(investment)
+            elif ticker in ['VTI', 'QQQ', 'VWO', 'VBK', 'VEA', 'IVV']:
+                categorized_investments['ETFs'].append(investment)
+            else:
+                categorized_investments['Stocks'].append(investment)
+        
+        # Build highlighted recommendations
+        highlighted_recommendations = []
+        if profile == 'Conservative':
+            highlighted_recommendations = [
+                {
+                    'title': 'Focus on Stability',
+                    'description': 'Your portfolio emphasizes bonds and dividend-paying stocks for stability and income.'
+                },
+                {
+                    'title': 'Dividend Income',
+                    'description': 'Conservative stocks like Johnson & Johnson and Procter & Gamble provide reliable dividends.'
+                },
+                {
+                    'title': 'Bond Protection',
+                    'description': 'A significant bond allocation helps protect your capital during market downturns.'
+                }
+            ]
+        elif profile == 'Moderate':
+            highlighted_recommendations = [
+                {
+                    'title': 'Balanced Approach',
+                    'description': 'Your portfolio balances growth potential with stability through a mix of stocks and bonds.'
+                },
+                {
+                    'title': 'Quality Companies',
+                    'description': 'Established companies like Apple and Microsoft offer growth potential with reasonable risk.'
+                },
+                {
+                    'title': 'Diversification',
+                    'description': 'ETFs provide broad market exposure to enhance diversification.'
+                }
+            ]
+        else:  # Aggressive
+            highlighted_recommendations = [
+                {
+                    'title': 'Growth Focus',
+                    'description': 'Your portfolio emphasizes high-growth companies and sectors for maximum appreciation.'
+                },
+                {
+                    'title': 'Innovation Leaders',
+                    'description': 'Companies like NVIDIA and Tesla are at the forefront of technological innovation.'
+                },
+                {
+                    'title': 'Global Opportunities',
+                    'description': 'Emerging markets exposure captures growth opportunities worldwide.'
+                }
+            ]
+        
+        return {
+            'profile_name': profile,
+            'profile_description': self._get_profile_description(profile),
+            'allocation_summary': allocation_summary,
+            'categorized_investments': categorized_investments,
+            'highlighted_recommendations': highlighted_recommendations,
+            'total_investments': len(investments)
+        }
+
+    def _get_color_for_asset_class(self, asset_class: str) -> str:
+        """Get color for asset class visualization"""
+        colors = {
+            'Bonds': '#4682B4',  # Steel Blue
+            'Large Cap Stocks': '#228B22',  # Forest Green
+            'Mid Cap Stocks': '#32CD32',  # Lime Green
+            'Small Cap Stocks': '#7FFF00',  # Chartreuse
+            'International Stocks': '#FF8C00',  # Dark Orange
+            'Commodities': '#FFD700'  # Gold
+        }
+        return colors.get(asset_class, '#808080')  # Default Gray
+
+    def _get_profile_description(self, profile: str) -> str:
+        """Get a short description of the risk profile"""
+        descriptions = {
+            'Conservative': 'Prioritizes safety of principal and steady income with minimal volatility.',
+            'Moderate': 'Balances growth potential with stability for medium-term goals.',
+            'Aggressive': 'Maximizes long-term growth potential while accepting higher volatility.'
+        }
+        return descriptions.get(profile, 'Customized investment approach based on your preferences.')
+
     def _get_default_recommendations(self) -> Dict:
         """Return default recommendations if error occurs"""
-        return {
-            'description': 'Default balanced investment strategy',
-            'allocation': {'stocks': 60, 'bonds': 30, 'cash': 10},
-            'stock_recommendations': [],
-            'explanation': 'Error occurred. Showing default conservative allocation.'
+        default_allocation = {
+            'Bonds': 50,
+            'Large Cap Stocks': 30,
+            'Mid Cap Stocks': 10,
+            'Small Cap Stocks': 5,
+            'International Stocks': 5,
+            'Commodities': 0
         }
+        
+        default_investments = [
+            {
+                'ticker': 'VTI',
+                'name': 'Vanguard Total Stock Market ETF',
+                'allocation': 30,
+                'reason': 'Broad market exposure through index ETF'
+            },
+            {
+                'ticker': 'BND',
+                'name': 'Vanguard Total Bond Market ETF',
+                'allocation': 50,
+                'reason': 'Stable bond investment for income and capital preservation'
+            },
+            {
+                'ticker': 'VEA',
+                'name': 'Vanguard FTSE Developed Markets ETF',
+                'allocation': 10,
+                'reason': 'International exposure for diversification'
+            },
+            {
+                'ticker': 'VCSH',
+                'name': 'Vanguard Short-Term Corporate Bond ETF',
+                'allocation': 10,
+                'reason': 'Short-term bonds for stability and income'
+            }
+        ]
+        
+        recommendations = {
+            'profile': 'Moderate',
+            'description': 'Default balanced investment strategy',
+            'asset_allocation': default_allocation,
+            'investments': default_investments,
+            'explanation': 'This default strategy provides a balanced approach suitable for most investors.',
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Add formatted display data for frontend
+        recommendations['display_data'] = self._format_for_display(recommendations)
+        
+        return recommendations
 
     def fetch_news(self, ticker: str) -> List[Dict]:
         """Fetch recent news articles with sentiment analysis"""
@@ -314,6 +620,18 @@ class RecommendationEngine:
 
     def get_recommendations_with_news(self, risk_profile, user_id):
         try:
+            # OCL: LinkedToAssessment
+            if not self._has_valid_assessment(user_id):
+                raise ValueError("User must have a valid risk assessment")
+            
+            # OCL: RecommendationAfterAssessment
+            if not self._is_assessment_before_recommendation(user_id):
+                raise ValueError("Risk assessment must be performed before generating recommendations")
+            
+            # OCL: MustHaveAssessmentForRecommendations
+            if not risk_profile:
+                raise ValueError("Risk profile is required for recommendations")
+            
             # Get user's risk tolerance and preferences
             risk_tolerance = risk_profile.get('risk_tolerance', 'Moderate')
             investment_horizon = risk_profile.get('investment_horizon', 'Medium')
@@ -443,11 +761,21 @@ class RecommendationEngine:
                     'score': 0,
                     'analysis': 'Unable to analyze market sentiment at this time.'
                 },
-                'risk_tolerance': 'Moderate',
-                'investment_horizon': 'Medium',
-                'financial_goals': [],
+                'risk_tolerance': risk_profile.get('risk_tolerance', 'Moderate'),
+                'investment_horizon': risk_profile.get('investment_horizon', 'Medium'),
+                'financial_goals': risk_profile.get('financial_goals', []),
                 'created_at': datetime.utcnow()
             }
+
+    def _has_valid_assessment(self, user_id):
+        """OCL: LinkedToAssessment"""
+        # Implementation would check database for valid assessment
+        return True  # Placeholder
+    
+    def _is_assessment_before_recommendation(self, user_id):
+        """OCL: RecommendationAfterAssessment"""
+        # Implementation would check timestamp of assessment vs current time
+        return True  # Placeholder
 
     def _get_market_indices(self):
         """Get current market indices data"""
@@ -600,3 +928,107 @@ class RecommendationEngine:
             'bonds': 0.4,
             'etfs': 0.2
         }
+
+    def create_user(self, email, password, user_data=None):
+        try:
+            # Check for existing email - OCL: UniqueEmail
+            existing_user = get_user_by_email(email)
+            if existing_user:
+                raise ValueError("Email already exists")
+            
+            # Validate password - OCL: PasswordStrength
+            if not self._validate_password_strength(password):
+                raise ValueError("Password does not meet security requirements")
+            
+            # Validate phone number if provided - OCL: ValidPhoneNumber
+            if user_data and 'phone_number' in user_data:
+                if not self._validate_phone_number(user_data['phone_number']):
+                    raise ValueError("Invalid phone number format")
+            
+            # Validate age restriction if date of birth provided - OCL: AgeRestriction
+            if user_data and 'date_of_birth' in user_data:
+                if not self._validate_age(user_data['date_of_birth']):
+                    raise ValueError("User must be at least 18 years old")
+            
+            # Create the user with validated data
+            if user_data is None:
+                user_data = {
+                    "email": email,
+                    "password": password
+                }
+            
+            return create_or_update_user(user_data)
+        except Exception as e:
+            print(f"Error creating user: {e}")
+            return None
+        
+    def _validate_password_strength(self, password):
+        """OCL: PasswordStrength"""
+        print(f"Validating password: {'*' * len(password)}")
+        
+        if not password or not isinstance(password, str):
+            print("Password validation failed: Invalid password type")
+            return False
+        
+        if len(password) < 8:
+            print("Password validation failed: Password too short")
+            return False
+        
+        if not re.search(r"[A-Z]", password):
+            print("Password validation failed: Missing uppercase letter")
+            return False
+        
+        if not re.search(r"[a-z]", password):
+            print("Password validation failed: Missing lowercase letter") 
+            return False
+        
+        if not re.search(r"[0-9]", password):
+            print("Password validation failed: Missing number")
+            return False
+        
+        if not re.search(r"[@$!%*?&]", password):
+            print("Password validation failed: Missing special character")
+            return False
+        
+        print("Password validation passed")
+        return True
+        
+    def _validate_phone_number(self, phone_number):
+        """OCL: ValidPhoneNumber"""
+        print(f"Validating phone number: {phone_number}")
+        
+        if not phone_number or not isinstance(phone_number, str):
+            print("Phone validation failed: Invalid phone number type")
+            return False
+        
+        if not re.match(r'^\+?[0-9]{10,15}$', phone_number):
+            print(f"Phone validation failed: Phone number doesn't match pattern (^\+?[0-9]{{10,15}}$)")
+            return False
+        
+        print("Phone validation passed")
+        return True
+        
+    def _validate_age(self, date_of_birth):
+        """OCL: AgeRestriction"""
+        print(f"Validating date of birth: {date_of_birth}")
+        
+        if not date_of_birth or not isinstance(date_of_birth, str):
+            print("Age validation failed: Invalid date format")
+            return False
+        
+        try:
+            dob = datetime.strptime(date_of_birth, '%Y-%m-%d')
+            today = datetime.now()
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            
+            print(f"Calculated age: {age} years")
+            
+            if age < 18:
+                print("Age validation failed: User is under 18 years old")
+                return False
+            
+            print("Age validation passed")
+            return True
+        except Exception as e:
+            print(f"Age validation failed: {str(e)}")
+            return False
