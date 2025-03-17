@@ -1,6 +1,8 @@
 import google.generativeai as genai
 from typing import Dict
 from database import store_risk_assessment, get_user_risk_assessment
+from datetime import datetime, timedelta
+from bson import ObjectId
 
 class RiskAssessor:
     def __init__(self):
@@ -63,6 +65,35 @@ class RiskAssessor:
             return fallback_questions[question_index]
 
     def assess_risk(self, user_id, responses):
+        """
+        Assess risk profile based on user responses
+        
+        OCL Constraints:
+        pre MinimumResponses: responses->size() >= 3
+        pre ValidResponses: responses->forAll(r | Set{'Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree'}->includes(r))
+        pre ValidUserID: user_id <> null and user_id.size() > 0
+        post RiskScoreInRange: (0 <= result.score and result.score <= 100)
+        post CorrectProfileMapping: 
+            (result.score >= 0 and result.score <= 20 implies result = 'conservative') and
+            (result.score > 20 and result.score <= 40 implies result = 'moderate_conservative') and
+            (result.score > 40 and result.score <= 60 implies result = 'moderate') and
+            (result.score > 60 and result.score <= 80 implies result = 'moderate_aggressive') and
+            (result.score > 80 and result.score <= 100 implies result = 'aggressive')
+        """
+        # Pre-condition: ValidUserID
+        if not user_id or not isinstance(user_id, (str, ObjectId)) or (isinstance(user_id, str) and len(user_id) == 0):
+            raise ValueError("Invalid user ID")
+        
+        # Pre-condition: MinimumResponses
+        if len(responses) < 3:
+            raise ValueError("A minimum of 3 responses is required for risk assessment")
+        
+        # Pre-condition: ValidResponses
+        valid_responses = ['Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree']
+        for response in responses.values():
+            if response not in valid_responses:
+                raise ValueError(f"Invalid response: {response}")
+        
         # Calculate risk score (0-100)
         total_score = 0
         weights = {
@@ -77,23 +108,62 @@ class RiskAssessor:
             total_score += weights.get(response, 50)
 
         risk_score = total_score / len(responses)
+        
+        # Post-condition: RiskScoreInRange
+        if not (0 <= risk_score <= 100):
+            risk_score = max(0, min(100, risk_score))  # Clamp between 0 and 100
 
-        # Determine risk profile
-        risk_profile = 'moderate'  # default
-        for profile, (min_score, max_score) in self.risk_profiles.items():
-            if min_score <= risk_score <= max_score:
-                risk_profile = profile
-                break
+        # Post-condition: CorrectProfileMapping
+        if 0 <= risk_score <= 20:
+            risk_profile = 'conservative'
+        elif 21 <= risk_score <= 40:
+            risk_profile = 'moderate_conservative'
+        elif 41 <= risk_score <= 60:
+            risk_profile = 'moderate'
+        elif 61 <= risk_score <= 80:
+            risk_profile = 'moderate_aggressive'
+        else:  # 81-100
+            risk_profile = 'aggressive'
 
+        # Invariant: ModificationTimeLimit
+        existing_assessment = get_user_risk_assessment(user_id)
+        if existing_assessment:
+            created_at = existing_assessment.get('created_at')
+            if created_at:
+                days_since_creation = (datetime.now() - created_at).days
+                if days_since_creation > 30:
+                    raise ValueError("Risk assessment can only be modified within 30 days of creation")
+        
+        # Invariant: SingleActiveAssessment
+        self._deactivate_previous_assessments(user_id)
+        
         assessment_data = {
             'score': risk_score,
             'profile': risk_profile,
             'responses': responses,
-            'risk_weights': self.risk_weights
+            'risk_weights': self.risk_weights,
+            'created_at': datetime.now(),
+            'updated_at': datetime.now(),
+            'active': True,
+            'modification_limit': (datetime.now() + timedelta(days=30))
         }
 
         store_risk_assessment(user_id, assessment_data)
         return risk_profile
+    
+    def _deactivate_previous_assessments(self, user_id):
+        """Deactivate all previous assessments to maintain SingleActiveAssessment invariant"""
+        try:
+            from database import risk_assessments_collection
+            # Update operation to deactivate all existing active assessments
+            risk_assessments_collection.update_many(
+                {"user_id": ObjectId(user_id), "active": True},
+                {"$set": {"active": False}}
+            )
+            return True
+        except Exception as e:
+            print(f"Error deactivating previous assessments: {e}")
+            return False
 
     def get_risk_profile(self, user_id):
         assessment = get_user_risk_assessment(user_id)
