@@ -26,7 +26,7 @@
             {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
             {% endif %}
-            <form method="POST" action="{{ url_for('signup') }}" class="needs-validation" novalidate>
+            <form method="POST" action="{{ url_for('signup') }}" class="needs-validation" novalidate onsubmit="return validateForm()">
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="name" class="form-label required">Full Name</label>
@@ -127,6 +127,72 @@
                 }, false)
             })
         })()
+
+        function validateForm() {
+            // Get form values
+            const password = document.getElementById('password').value;
+            const phoneNumber = document.getElementById('phone_number').value;
+            const dateOfBirth = document.getElementById('date_of_birth').value;
+            
+            // Password validation
+            if (password.length < 8) {
+                alert("Password must be at least 8 characters long.");
+                return false;
+            }
+            
+            if (!/[A-Z]/.test(password)) {
+                alert("Password must contain at least one uppercase letter.");
+                return false;
+            }
+            
+            if (!/[a-z]/.test(password)) {
+                alert("Password must contain at least one lowercase letter.");
+                return false;
+            }
+            
+            if (!/[0-9]/.test(password)) {
+                alert("Password must contain at least one number.");
+                return false;
+            }
+            
+            if (!/[@$!%*?&]/.test(password)) {
+                alert("Password must contain at least one special character (@, $, !, %, *, ?, &).");
+                return false;
+            }
+            
+            // Phone number validation
+            if (!/^\+?[0-9]{10,15}$/.test(phoneNumber)) {
+                alert("Please enter a valid phone number (10-15 digits, optionally starting with +).");
+                return false;
+            }
+            
+            // Age validation
+            const dob = new Date(dateOfBirth);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const monthDiff = today.getMonth() - dob.getMonth();
+            
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            
+            if (age < 18) {
+                alert("You must be at least 18 years old to register.");
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Update the form to call validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            form.addEventListener('submit', function(event) {
+                if (!validateForm()) {
+                    event.preventDefault();
+                }
+            });
+        });
     </script>
 </body>
 </html> 
