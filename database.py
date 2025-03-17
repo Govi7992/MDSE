@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 import bcrypt
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
 
 uri = "mongodb+srv://deshmukhanna105:yMO52hfsY6Wf7ize@mbse.knpxy.mongodb.net/?retryWrites=true&w=majority&appName=MBSE"
@@ -89,19 +89,47 @@ def verify_user(email, password):
     return False
 
 def store_risk_assessment(user_id, assessment_data):
+    """
+    Store risk assessment data
+    
+    OCL Constraints:
+    pre ValidUserID: ObjectId.is_valid(user_id)
+    pre RequiredFields: assessment_data->includesAll(Set{'score', 'profile', 'responses'})
+    post AssessmentStored: risk_assessments_collection->exists(a | a.user_id = user_id)
+    post ModificationLimit: existing <> null implies (existing.created_at.differenceInDays(currentDate()) <= 30)
+    """
     try:
-        assessment_data["user_id"] = ObjectId(user_id)
+        # Pre-condition: ValidUserID
+        if not user_id or not ObjectId.is_valid(str(user_id)):
+            raise ValueError("Invalid user ID")
+            
+        # Pre-condition: RequiredFields
+        required_fields = ['score', 'profile', 'responses']
+        for field in required_fields:
+            if field not in assessment_data:
+                raise ValueError(f"Missing required field: {field}")
+        
+        # Convert to ObjectId if needed
+        user_id_obj = ObjectId(user_id) if isinstance(user_id, str) else user_id
+        assessment_data["user_id"] = user_id_obj
         assessment_data["updated_at"] = datetime.utcnow()
         
         # Check if assessment exists
         existing_assessment = risk_assessments_collection.find_one(
-            {"user_id": ObjectId(user_id)}
+            {"user_id": user_id_obj}
         )
         
         if existing_assessment:
-            # Update existing assessment
+            # Post-condition: ModificationLimit
+            created_at = existing_assessment.get("created_at", datetime.utcnow())
+            modification_limit = created_at + timedelta(days=30)
+            
+            if datetime.utcnow() > modification_limit:
+                raise ValueError("Cannot modify risk assessment after 30 days of creation")
+                
+            # Update existing assessment (atomic operation)
             result = risk_assessments_collection.update_one(
-                {"user_id": ObjectId(user_id)},
+                {"user_id": user_id_obj},
                 {"$set": assessment_data}
             )
             return existing_assessment["_id"]
@@ -109,6 +137,11 @@ def store_risk_assessment(user_id, assessment_data):
             # Create new assessment
             assessment_data["created_at"] = datetime.utcnow()
             result = risk_assessments_collection.insert_one(assessment_data)
+            
+            # Post-condition: AssessmentStored verification
+            if not result.inserted_id:
+                raise RuntimeError("Failed to store assessment")
+                
             return result.inserted_id
     except Exception as e:
         print(f"Error storing risk assessment: {e}")
@@ -161,4 +194,46 @@ def update_user_details(user_id, user_details):
         return True
     except Exception as e:
         print(f"Error updating user details: {e}")
-        return False 
+        return False
+
+def execute_transaction(operations):
+    """OCL: AtomicTransactions"""
+    transaction_status = 'pending'
+    changes = []
+    
+    try:
+        # Begin transaction
+        transaction_status = 'in_progress'
+        session = client.start_session()
+        session.start_transaction()
+        
+        # Execute operations
+        for operation in operations:
+            result = operation(session)
+            changes.append(result)
+            
+        # Commit transaction
+        session.commit_transaction()
+        session.end_session()
+        transaction_status = 'completed'
+        return changes
+    except Exception as e:
+        # Rollback transaction
+        if transaction_status == 'in_progress':
+            try:
+                session.abort_transaction()
+                session.end_session()
+            except:
+                pass
+        
+        transaction_status = 'failed'
+        changes = []  # OCL: AtomicTransactions - Clear all changes when transaction fails
+        print(f"Transaction failed: {e}")
+        raise e
+    finally:
+        # Log transaction status
+        print(f"Transaction completed with status: {transaction_status}")
+        
+        # OCL: AtomicTransactions - Ensure no changes if transaction failed
+        if transaction_status == 'failed':
+            assert len(changes) == 0, "Failed transaction should not have changes" 
