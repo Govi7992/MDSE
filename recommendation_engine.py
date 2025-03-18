@@ -901,7 +901,8 @@ class RecommendationEngine:
                 recommendations.append({
                     'symbol': asset,
                     'percentage': round(allocation / len(suitable_assets), 2),
-                    'rationale': self._get_recommendation_rationale(asset, asset_type, market_data[asset])
+                    'rationale': self._get_recommendation_rationale(asset, asset_type, market_data[asset]),
+                    'type': self.determine_investment_type(asset, market_data[asset]['name'])
                 })
         
         return recommendations
@@ -1032,3 +1033,22 @@ class RecommendationEngine:
         except Exception as e:
             print(f"Age validation failed: {str(e)}")
             return False
+
+    def determine_investment_type(self, symbol, name):
+        """Determine investment type based on symbol and name"""
+        if symbol.endswith('F'):
+            return 'Mutual Fund'
+        elif symbol.endswith('X'):
+            return 'Index Fund'
+        elif 'ETF' in name:
+            return 'ETF'
+        elif 'Index' in name:
+            return 'Index Fund'
+        elif 'Bond' in name or 'Treasury' in name:
+            return 'Bond'
+        elif 'REIT' in name or 'Real Estate' in name:
+            return 'REIT'
+        elif 'Fund' in name:
+            return 'Mutual Fund'
+        else:
+            return 'Stock'
