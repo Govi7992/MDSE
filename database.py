@@ -16,7 +16,26 @@ def hash_password(password):
     return hashed_password
 
 def verify_password(password, hashed_password):
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    """Verify a password against a hashed version"""
+    try:
+        # Check if the hashed password is bytes or string
+        if isinstance(hashed_password, str):
+            hashed_bytes = hashed_password.encode('utf-8')
+        else:
+            hashed_bytes = hashed_password
+            
+        # Handle both string and bytes input for password
+        if isinstance(password, str):
+            password_bytes = password.encode('utf-8')
+        else:
+            password_bytes = password
+            
+        # Use bcrypt to check the password
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception as e:
+        print(f"Password verification error: {e}")
+        # In case of any error, return False for security
+        return False
 
 def create_or_update_user(user_data):
     try:
