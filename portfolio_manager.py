@@ -6,12 +6,14 @@ from market_data import MarketDataService
 
 class PortfolioManager:
     def __init__(self):
+        """Initialize portfolio manager with dashboard capabilities"""
         self.portfolios = {}
         self.recommendation_engine = RecommendationEngine()
         self.market_data = MarketDataService()
         self.asset_db = AssetDB()
         
     def create_portfolio(self, user_id, name):
+        """Create a new portfolio"""
         if not user_id:
             raise ValueError("User ID cannot be empty")
             
@@ -100,11 +102,13 @@ class PortfolioManager:
         return total_value
 
     def get_recommendations(self, user_id: str, portfolio_id: str) -> Dict:
+        """Get investment recommendations for portfolio"""
         risk_profile = self.get_risk_profile(user_id)
         market_data = self.market_data.get_current_market_data()
         return self.recommendation_engine.generate_recommendations(risk_profile, market_data)
         
     def display_portfolio(self, user_id: str, portfolio_id: str) -> Dict:
+        """Get portfolio display data"""
         if not self._validate_portfolio_access(user_id, portfolio_id):
             return {}
             
@@ -117,6 +121,7 @@ class PortfolioManager:
         }
         
     def generate_alert(self, user_id: str, portfolio_id: str) -> Optional[str]:
+        """Generate portfolio alerts based on market conditions"""
         if not self._validate_portfolio_access(user_id, portfolio_id):
             return None
             
@@ -124,6 +129,7 @@ class PortfolioManager:
         return None
 
     def calculate_performance(self, initial_value: float, current_value: float) -> Dict:
+        """Calculate portfolio performance metrics"""
         if initial_value <= 0:
             raise ValueError("Initial value must be greater than 0")
             

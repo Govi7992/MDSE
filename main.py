@@ -5,7 +5,7 @@ from market_data import MarketDataService
 from news_service import NewsService
 from recommendation_engine import RecommendationEngine
 from asset_db import AssetDB
-from user_support import UserSupport
+
 
 class FinancialAdvisorSystem:
     def __init__(self):
@@ -16,7 +16,6 @@ class FinancialAdvisorSystem:
         self.market_data = MarketDataService()
         self.news_service = NewsService()
         self.recommendation_engine = RecommendationEngine()
-        self.user_support = UserSupport()
         self.portfolio_manager.asset_db = self.asset_db
 
     def register_user(self, username, password, email):
@@ -37,26 +36,35 @@ class FinancialAdvisorSystem:
         return self.news_service.get_financial_news()
 
 def main():
-    system = FinancialAdvisorSystem()
-
-    user_id = system.register_user("john_doe", "secure_password", "john@example.com")
-    if system.authenticate_user("john_doe", "secure_password"):
-        responses = {
-            "investment_timeline": 5,
-            "risk_tolerance": "moderate",
-            "income_level": "high",
-            "investment_experience": "intermediate"
-        }
+    try:
+        system = FinancialAdvisorSystem()
+        user_id = system.register_user("john_doe", "StrongPass123!", "john@example.com")
         
-        risk_profile = system.assess_risk_profile(user_id, responses)
-        recommendations = system.get_portfolio_recommendations(user_id)
-        print(f"Risk Profile: {risk_profile}")
-        print(f"Recommendations: {recommendations}")
+        if system.authenticate_user("john_doe", "StrongPass123!"):
+            responses = {
+                "investment_timeline": 5,
+                "risk_tolerance": "moderate",
+                "income_level": "high",
+                "investment_experience": "intermediate"
+            }
+            
+            risk_profile = system.assess_risk_profile(user_id, responses)
+            recommendations = system.get_portfolio_recommendations(user_id)
+            print(f"Risk Profile: {risk_profile}")
+            print(f"Recommendations: {recommendations}")
 
-        news = system.get_financial_news()
+            news = system.get_financial_news()
+            print("Financial News:")
+            for article in news:
+                print(f"- {article['title']} ({article['url']})")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        print("\nRunning in demo mode with sample data:")
+        print("Risk Profile: moderate")
+        print("Recommendations: {'stocks': 50%, 'bonds': 30%, 'cash': 20%}")
         print("Financial News:")
-        for article in news:
-            print(f"- {article['title']} ({article['url']})")
+        print("- Market Update: Stocks rise on economic data (https://example.com/news1)")
+        print("- Fed Announces New Policy (https://example.com/news2)")
 
 if __name__ == "__main__":
     main()

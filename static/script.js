@@ -1,6 +1,7 @@
+
 let currentQuestionIndex = 0;
 let userResponses = {};
-const userId = 'user_' + Date.now();  // Generate a unique user ID
+const userId = 'user_' + Date.now(); 
 
 function startAssessment() {
     console.log("Starting assessment...");
@@ -156,9 +157,8 @@ function displayResults(results) {
         `).join('');
 }
 
-// Initialize the welcome screen
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('welcome-screen').style.display = 'block'; // Ensure this element exists
-    document.getElementById('question-container').style.display = 'none'; // Ensure this element exists
-    document.getElementById('results').style.display = 'none'; // Ensure this element exists
+    document.getElementById('welcome-screen').style.display = 'block'; 
+    document.getElementById('question-container').style.display = 'none'; 
+    document.getElementById('results').style.display = 'none'; 
 });

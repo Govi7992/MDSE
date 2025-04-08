@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MoneyBuddy - Investment Risk Advisor{% endblock %}</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        .site-logo-container {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-3);
+        }
+        
+        .site-logo-image {
+            height: 40px;
+            width: auto;
+            border-radius: var(--radius);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="navbar-container">
+
+            <div class="site-logo-container">
+                <img src="{{ url_for('static', filename='images/bull.jpeg') }}" alt="Bull Market" class="site-logo-image">
+            </div>
+            
+            <button class="navbar-toggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            
+            <div class="navbar-menu">
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                    Home
+                </a>
+                <a href="{{ url_for('portfolio') }}" class="nav-link {% if request.endpoint == 'portfolio' %}active{% endif %}">
+                    Portfolio
+                </a>
+                <a href="{{ url_for('retake_assessment') }}" class="nav-link {% if request.endpoint == 'retake_assessment' %}active{% endif %}">
+                    Risk Assessment
+                </a>
+                <a href="{{ url_for('market_sentiment') }}" class="nav-link {% if request.endpoint == 'market_sentiment' %}active{% endif %}">
+                    Market Insights
+                </a>
+                <a href="{{ url_for('contact') }}" class="nav-link {% if request.endpoint == 'contact' %}active{% endif %}">
+                    Contact
+                </a>
+                
+                {% if 'user_id' in session %}
+                    <a href="{{ url_for('logout') }}" class="nav-link nav-link-auth">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="nav-link nav-link-auth">Login</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-grid">
+                <div class="footer-section">
+                    <h3>MoneyBuddy - Investment Risk Advisor</h3>
+                    <p>Empowering your financial future with data-driven insights.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin"></i></a>
+                        <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                    </div>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="{{ url_for('index') }}">Home</a></li>
+                        <li><a href="{{ url_for('portfolio') }}">Portfolio</a></li>
+                        <li><a href="{{ url_for('retake_assessment') }}">Risk Assessment</a></li>
+                        <li><a href="{{ url_for('market_sentiment') }}">Market Insights</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Disclaimers</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><i class="fas fa-envelope"></i> contact@investrisk.com</li>
+                        <li><i class="fas fa-phone"></i> (555) 123-4567</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; {{ now.year }} Investment Risk Advisor. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

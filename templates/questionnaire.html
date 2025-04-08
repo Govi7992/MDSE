@@ -1,48 +1,393 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Investment Risk Assessment Questionnaire</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-5">
-        <h1>Investment Risk Assessment Questionnaire</h1>
-        <div id="welcome-screen">
-            <p>Welcome! Click below to start the assessment.</p>
-            <button onclick="startAssessment()" class="btn btn-primary">Start Assessment</button>
-        </div>
-        <div id="question-container" style="display: none;">
-            <div class="progress mb-3">
-                <div id="progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
-            </div>
-            <p id="question-number" class="mb-3">Question 1 of 10</p>
-            <p id="question" class="question-text mb-4"></p>
-            <div id="options" class="options-container mb-4"></div>
-            <button id="next-button" onclick="nextQuestion()" class="btn btn-primary">Next Question</button>
-        </div>
-        <div id="loading" style="display: none;" class="text-center">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-        <div id="results" style="display: none;">
-            <h2>Your Risk Assessment Results</h2>
-            <div id="risk-profile" class="profile-section"></div>
-            <div id="risk-score" class="score-section"></div>
-            <div class="responses-section">
-                <h3>Your Response Summary</h3>
-                <div id="detailed-responses"></div>
-            </div>
-            <div class="mt-4">
-                <a href="{{ url_for('recommendations') }}" class="btn btn-success">View Investment Recommendations</a>
-                <button onclick="restartAssessment()" class="btn btn-secondary ms-2">Start Over</button>
-                <a href="{{ url_for('logout') }}" class="btn btn-danger ms-2">Logout</a>
-            </div>
-        </div>
+{% extends "base.html" %}
+
+{% block title %}Risk Assessment - Investment Risk Advisor{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1>Investment Risk Assessment</h1>
+        <p class="subtitle">Answer these questions to help us understand your investment preferences and risk tolerance.</p>
     </div>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-</html>
+    
+    <div class="progress-container">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-text">Question <span id="current-question">1</span> of <span id="total-questions">10</span></div>
+    </div>
+    
+    <div class="card questionnaire-card">
+        <form id="risk-assessment-form">
+            <div id="question-container">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading questions...</p>
+                </div>
+            </div>
+            
+            <div class="questionnaire-actions">
+                <button type="button" id="prev-btn" class="btn btn-secondary" disabled>Previous</button>
+                <button type="button" id="next-btn" class="btn btn-primary">Next</button>
+                <button type="submit" id="submit-btn" class="btn btn-primary" style="display: none;">Complete Assessment</button>
+            </div>
+        </form>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        text-align: center;
+        margin-bottom: var(--spacing-8);
+    }
+    
+    .subtitle {
+        color: var(--color-gray-600);
+        font-size: var(--font-size-lg);
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .progress-container {
+        margin-bottom: var(--spacing-8);
+    }
+    
+    .progress-bar {
+        height: 8px;
+        background-color: var(--color-gray-200);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+        margin-bottom: var(--spacing-2);
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background-color: var(--color-primary);
+        width: 10%;
+        transition: width 0.3s ease;
+    }
+    
+    .progress-text {
+        text-align: center;
+        font-size: var(--font-size-sm);
+        color: var(--color-gray-600);
+    }
+    
+    .questionnaire-card {
+        max-width: 800px;
+        margin: 0 auto var(--spacing-8);
+    }
+    
+    .question {
+        margin-bottom: var(--spacing-6);
+    }
+    
+    .question-title {
+        font-weight: 600;
+        margin-bottom: var(--spacing-4);
+        font-size: var(--font-size-lg);
+    }
+    
+    .options-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-3);
+    }
+    
+    .option-item {
+        padding: var(--spacing-4);
+        border: 1px solid var(--color-gray-300);
+        border-radius: var(--radius);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .option-item:hover {
+        border-color: var(--color-primary);
+        background-color: var(--color-gray-50);
+    }
+    
+    .option-item.selected {
+        border-color: var(--color-primary);
+        background-color: rgba(37, 99, 235, 0.1);
+    }
+    
+    .option-input {
+        display: none;
+    }
+    
+    .questionnaire-actions {
+        display: flex;
+        justify-content: space-between;
+        margin-top: var(--spacing-8);
+    }
+    
+    .loading-spinner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: var(--spacing-8);
+        color: var(--color-gray-500);
+    }
+    
+    .loading-spinner i {
+        font-size: 2rem;
+        margin-bottom: var(--spacing-4);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentQuestion = 1;
+    let totalQuestions = 10;
+    let responses = {};
+    let currentResponses = {};
+    
+    function updateProgress() {
+        const progressFill = document.getElementById('progress-fill');
+        const currentQuestionSpan = document.getElementById('current-question');
+        const totalQuestionsSpan = document.getElementById('total-questions');
+        
+        const progress = (currentQuestion / totalQuestions) * 100;
+        progressFill.style.width = `${progress}%`;
+        currentQuestionSpan.textContent = currentQuestion;
+        totalQuestionsSpan.textContent = totalQuestions;
+        
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        
+        if (!prevBtn || !nextBtn || !submitBtn) return; 
+        
+        prevBtn.disabled = currentQuestion === 1;
+        
+        if (currentQuestion === totalQuestions) {
+            nextBtn.style.display = 'none';
+            submitBtn.style.display = 'block';
+        } else {
+            nextBtn.style.display = 'block';
+            submitBtn.style.display = 'none';
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('risk-assessment-form');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const submitBtn = document.getElementById('submit-btn');
+
+        fetchQuestion();
+        
+        nextBtn.addEventListener('click', function() {
+            const selectedOption = document.querySelector('input[name="answer"]:checked');
+            
+            if (!selectedOption) {
+                alert('Please select an answer before continuing.');
+                return;
+            }
+            
+            responses[currentQuestion] = selectedOption.value;
+            currentResponses[currentQuestion] = selectedOption.value;
+
+            currentQuestion++;
+            fetchQuestion();
+        });
+        
+        prevBtn.addEventListener('click', function() {
+            if (currentQuestion > 1) {
+                currentQuestion--;
+                fetchQuestion();
+            }
+        });
+        
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const selectedOption = document.querySelector('input[name="answer"]:checked');
+            if (selectedOption) {
+                responses[currentQuestion] = selectedOption.value;
+            }
+
+            if (Object.keys(responses).length < 5) {
+                alert('Please answer more questions to complete the assessment.');
+                return;
+            }
+
+            fetch('/api/assess-risk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ responses: responses }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    window.location.href = '/recommendations';
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting assessment:', error);
+                alert('An error occurred while submitting your assessment. Please try again.');
+            });
+        });
+    });
+
+    function renderQuestion(question) {
+        const container = document.getElementById('question-container');
+        
+        if (!question) {
+            container.innerHTML = '<div class="error-message">Error loading question. Please refresh the page.</div>';
+            return;
+        }
+        
+        let html = `
+            <div class="question">
+                <h2>${question.text || 'Question'}</h2>
+                ${question.description ? `<p class="question-description">${question.description}</p>` : ''}
+            </div>
+            <div class="options-container">
+        `;
+        
+        const options = question.options || [];
+        
+        if (Array.isArray(options) && options.length > 0) {
+            options.forEach((option, index) => {
+                if (option) {  
+                    html += `
+                        <div class="option">
+                            <input type="radio" name="answer" id="option-${index}" value="${option.value || ''}" 
+                                ${currentResponses[currentQuestion] === (option.value || '') ? 'checked' : ''}>
+                            <label for="option-${index}" class="option-label">
+                                <span class="option-text">${option.text || 'Option ' + (index + 1)}</span>
+                                ${option.description ? `<span class="option-description">${option.description}</span>` : ''}
+                            </label>
+                        </div>
+                    `;
+                }
+            });
+        } else {
+            html += '<div class="error-message">No options available for this question. Please contact support.</div>';
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+    
+    function fetchQuestion() {
+        document.getElementById('question-container').innerHTML = `
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading question...</p>
+            </div>
+        `;
+        
+        fetch('/generate-question', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                current_question: currentQuestion,
+                responses: responses 
+            }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("API Response:", data);
+            
+            if (data.error) {
+                console.error('Error:', data.error);
+                throw new Error(data.error);
+            }
+
+            let minQuestions = 10;
+
+            if (data.question && typeof data.question === 'string') {
+                const questionText = data.question;
+                data = {
+                    question: {
+                        id: currentQuestion,
+                        text: questionText,
+                        options: [
+                            {value: "Strongly Disagree", text: "Strongly Disagree"},
+                            {value: "Disagree", text: "Disagree"},
+                            {value: "Neutral", text: "Neutral"},
+                            {value: "Agree", text: "Agree"},
+                            {value: "Strongly Agree", text: "Strongly Agree"}
+                        ]
+                    },
+                    total_questions: minQuestions  
+                };
+            }
+
+            const safeQuestion = {
+                id: data.question?.id || currentQuestion,
+                text: data.question?.text || (typeof data.question === 'string' ? data.question : `Question ${currentQuestion}`),
+                description: data.question?.description || '',
+                options: Array.isArray(data.question?.options) ? 
+                    data.question.options : 
+                    [
+                        {value: "Strongly Disagree", text: "Strongly Disagree"},
+                        {value: "Disagree", text: "Disagree"},
+                        {value: "Neutral", text: "Neutral"},
+                        {value: "Agree", text: "Agree"},
+                        {value: "Strongly Agree", text: "Strongly Agree"}
+                    ]
+            };
+            
+            currentQuestion = safeQuestion.id;
+            totalQuestions = Math.max(data.total_questions || minQuestions, minQuestions);
+            renderQuestion(safeQuestion);
+            updateProgress();
+        })
+        .catch(error => {
+            console.error('Error fetching question:', error);
+            document.getElementById('question-container').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Error fetching question: ${error.message || 'Unknown error'}. Please try again.</p>
+                    <button class="btn btn-secondary retry-btn">Retry</button>
+                    <button class="btn btn-primary fallback-btn">Use Default Questions</button>
+        </div>
+            `;
+            const retryBtn = document.querySelector('.retry-btn');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', fetchQuestion);
+            }
+
+            const fallbackBtn = document.querySelector('.fallback-btn');
+            if (fallbackBtn) {
+                fallbackBtn.addEventListener('click', () => {
+                    const defaultQuestions = [
+                        {
+                            id: 1,
+                            text: "What is your investment time horizon?",
+                            description: "How long do you plan to invest before needing to access your funds?",
+                            options: [
+                                {value: "1", text: "Less than 1 year"},
+                                {value: "2", text: "1-3 years"},
+                                {value: "3", text: "3-5 years"},
+                                {value: "4", text: "5-10 years"},
+                                {value: "5", text: "More than 10 years"}
+                            ]
+                        }
+                    ];
+                    
+                    renderQuestion(defaultQuestions[currentQuestion - 1] || defaultQuestions[0]);
+                    updateProgress();
+                });
+            }
+        });
+    }
+</script>
+{% endblock %}

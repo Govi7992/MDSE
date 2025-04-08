@@ -1,0 +1,525 @@
+{% extends "base.html" %}
+
+{% block title %}Market Sentiment - MoneyBuddy{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1>Market Sentiment Analysis</h1>
+        <p class="subtitle">Real-time insights into market mood and trends to guide your investment decisions.</p>
+    </div>
+    
+    <div class="card sentiment-overview-card">
+        <div class="sentiment-gauge-container">
+            <div class="sentiment-gauge">
+                <div class="gauge-labels">
+                    <span>Bearish</span>
+                    <span>Neutral</span>
+                    <span>Bullish</span>
+                </div>
+                <div class="gauge-meter">
+                    <div class="gauge-fill" data-width="{{ sentiment_data.score }}"></div>
+                    <div class="gauge-indicator" data-left="{{ sentiment_data.score }}">
+                        <span class="gauge-value">{{ sentiment_data.score }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="sentiment-summary">
+                <h2>{{ 'Bearish' if sentiment_data.score < 40 else 'Neutral' if sentiment_data.score < 60 else 'Bullish' }}</h2>
+                <div class="last-updated">Updated: {{ sentiment_data.last_updated }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="sentiment-metrics-grid">
+        <div class="card metric-card">
+            <div class="metric-header">
+                <h3>Volatility</h3>
+                <div class="metric-value {{ 'negative' if sentiment_data.volatility.trend < 0 else 'positive' }}">
+                    {{ sentiment_data.volatility.value }}
+                    <span class="trend-indicator">
+                        <i class="fas fa-{{ 'arrow-down' if sentiment_data.volatility.trend < 0 else 'arrow-up' }}"></i>
+                        {{ sentiment_data.volatility.trend|abs }}%
+                    </span>
+                </div>
+            </div>
+            <div class="metric-chart">
+                <div class="chart-bars">
+                    {% for i in range(10) %}
+                        <div class="chart-bar" data-height="{{ 20 + (i * 8) - (10 - i) * 5 }}"></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="card metric-card">
+            <div class="metric-header">
+                <h3>Economic Outlook</h3>
+                <div class="metric-value {{ 'negative' if sentiment_data.economic_outlook.trend < 0 else 'positive' }}">
+                    {{ sentiment_data.economic_outlook.value }}
+                    <span class="trend-indicator">
+                        <i class="fas fa-{{ 'arrow-down' if sentiment_data.economic_outlook.trend < 0 else 'arrow-up' }}"></i>
+                        {{ sentiment_data.economic_outlook.trend|abs }}%
+                    </span>
+                </div>
+            </div>
+            <div class="metric-chart">
+                <div class="chart-line">
+                    <svg viewBox="0 0 100 20">
+                        <path d="M0,10 Q25,{% if sentiment_data.economic_outlook.trend > 0 %}0{% else %}20{% endif %} 50,10 T100,{% if sentiment_data.economic_outlook.trend > 0 %}0{% else %}20{% endif %}" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card metric-card">
+            <div class="metric-header">
+                <h3>Investor Sentiment</h3>
+                <div class="metric-value {{ 'negative' if sentiment_data.investor_sentiment.trend < 0 else 'positive' }}">
+                    {{ sentiment_data.investor_sentiment.value }}
+                    <span class="trend-indicator">
+                        <i class="fas fa-{{ 'arrow-down' if sentiment_data.investor_sentiment.trend < 0 else 'arrow-up' }}"></i>
+                        {{ sentiment_data.investor_sentiment.trend|abs }}%
+                    </span>
+                </div>
+            </div>
+            <div class="sentiment-faces">
+                <i class="far fa-{{ 'frown' if sentiment_data.investor_sentiment.trend < -3 else 'meh' if sentiment_data.investor_sentiment.trend < 0 else 'smile' }}" data-opacity="{{ 1 if sentiment_data.investor_sentiment.trend < 0 else 0.3 }}"></i>
+                <i class="far fa-meh" data-opacity="{{ 1 if sentiment_data.investor_sentiment.trend >= -1 and sentiment_data.investor_sentiment.trend <= 1 else 0.3 }}"></i>
+                <i class="far fa-{{ 'smile' if sentiment_data.investor_sentiment.trend > 3 else 'smile' if sentiment_data.investor_sentiment.trend > 0 else 'meh' }}" data-opacity="{{ 1 if sentiment_data.investor_sentiment.trend > 0 else 0.3 }}"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="news-sentiment-section">
+        <h2>Latest Market News with Sentiment Analysis</h2>
+        <div class="news-container" id="news-sentiment-container">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading news and sentiment analysis...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    fetch('/api/market-news')
+        .then(response => response.json())
+        .then(data => {
+            const newsContainer = document.getElementById('news-sentiment-container');
+            
+            if (data.news && data.news.length > 0) {
+                const newsWithSentiment = data.news.map(item => {
+
+                    item.title = item.title || 'News headline';
+                    item.source = item.source || 'News source';
+                    item.url = item.url || '#';
+                    item.ticker = item.ticker || '';
+                    
+                    let sentimentScore = 50; 
+                    const text = (item.title + ' ' + (item.description || '')).toLowerCase();
+                    
+                    const positiveWords = ['growth', 'positive', 'gain', 'improve', 'up', 'strong', 'exceed', 'record'];
+                    const negativeWords = ['down', 'decline', 'drop', 'fall', 'loss', 'weak', 'concern', 'risk'];
+                    
+                    positiveWords.forEach(word => {
+                        if (text.includes(word)) sentimentScore += 10;
+                    });
+                    
+                    negativeWords.forEach(word => {
+                        if (text.includes(word)) sentimentScore -= 10;
+                    });
+
+                    sentimentScore = Math.max(0, Math.min(100, sentimentScore));
+                    
+                    let sentimentType;
+                    if (sentimentScore < 40) sentimentType = 'negative';
+                    else if (sentimentScore < 60) sentimentType = 'neutral';
+                    else sentimentType = 'positive';
+                    
+                    return {
+                        ...item,
+                        sentiment_score: sentimentScore,
+                        sentiment_type: sentimentType
+                    };
+                });
+                
+                newsContainer.innerHTML = '';
+                
+                newsWithSentiment.forEach(item => {
+                    const tickerBadge = item.ticker ? 
+                        `<span class="ticker-badge">${item.ticker}</span>` : '';
+                    
+                    const sentimentIcon = item.sentiment_type === 'positive' ? 'arrow-up' : 
+                                         item.sentiment_type === 'negative' ? 'arrow-down' : 'minus';
+                    
+                    newsContainer.innerHTML += `
+                        <div class="news-item">
+                            <div class="news-header">
+                                <h4>${tickerBadge}${item.title}</h4>
+                                <div class="news-sentiment ${item.sentiment_type}">
+                                    <span class="sentiment-score">${item.sentiment_score}</span>
+                                    <i class="fas fa-${sentimentIcon}"></i>
+                                </div>
+                            </div>
+                            <div class="news-meta">
+                                <span class="news-source">${item.source}</span>
+                                <a href="${item.url}" target="_blank" class="news-link">
+                                    Read More <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                newsContainer.innerHTML = '<p class="no-data">No market news available at this time.</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching news:', error);
+            document.getElementById('news-sentiment-container').innerHTML = 
+                '<p class="error-message">Error loading news. Please refresh the page to try again.</p>';
+        });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.gauge-fill').forEach(el => {
+            const width = el.getAttribute('data-width');
+            el.style.width = width + '%';
+        });
+        
+        document.querySelectorAll('.gauge-indicator').forEach(el => {
+            const left = el.getAttribute('data-left');
+            el.style.left = left + '%';
+        });
+        
+        document.querySelectorAll('.chart-bar').forEach(el => {
+            const height = el.getAttribute('data-height');
+            el.style.height = height + 'px';
+        });
+        
+        document.querySelectorAll('.sentiment-faces i').forEach(el => {
+            const opacity = el.getAttribute('data-opacity');
+            el.style.opacity = opacity;
+        });
+    });
+</script>
+
+<style>
+    .sentiment-overview-card {
+        margin-bottom: var(--spacing-6);
+        padding: var(--spacing-6);
+    }
+    
+    .sentiment-gauge-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-6);
+    }
+    
+    @media (min-width: 768px) {
+        .sentiment-gauge-container {
+            flex-direction: row;
+            align-items: flex-start;
+        }
+    }
+    
+    .sentiment-gauge {
+        flex: 1;
+        max-width: 600px;
+    }
+    
+    .gauge-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: var(--spacing-2);
+        color: var(--color-gray-600);
+    }
+    
+    .gauge-meter {
+        height: 24px;
+        background-color: var(--color-gray-200);
+        border-radius: var(--radius-full);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .gauge-fill {
+        height: 100%;
+        background: linear-gradient(to right, 
+            var(--color-danger) 0%, 
+            var(--color-warning) 50%, 
+            var(--color-success) 100%);
+        transition: width 1s ease-in-out;
+    }
+    
+    .gauge-indicator {
+        position: absolute;
+        top: -8px;
+        transform: translateX(-50%);
+        transition: left 1s ease-in-out;
+    }
+    
+    .gauge-value {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background-color: white;
+        border: 2px solid var(--color-primary);
+        border-radius: 50%;
+        font-weight: bold;
+        color: var(--color-primary);
+    }
+    
+    .sentiment-summary {
+        flex: 1;
+        text-align: center;
+    }
+    
+    @media (min-width: 768px) {
+        .sentiment-summary {
+            text-align: left;
+            padding-left: var(--spacing-6);
+        }
+    }
+    
+    .sentiment-summary h2 {
+        margin-bottom: var(--spacing-2);
+        color: var(--color-primary);
+    }
+    
+    .last-updated {
+        margin-top: var(--spacing-4);
+        font-size: var(--font-size-sm);
+        color: var(--color-gray-500);
+    }
+    
+    .sentiment-metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(1, 1fr);
+        gap: var(--spacing-6);
+        margin-bottom: var(--spacing-8);
+    }
+    
+    @media (min-width: 768px) {
+        .sentiment-metrics-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+    
+    .metric-card {
+        padding: var(--spacing-4);
+    }
+    
+    .metric-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: var(--spacing-3);
+    }
+    
+    .metric-header h3 {
+        margin: 0;
+        font-size: var(--font-size-lg);
+    }
+    
+    .metric-value {
+        font-weight: bold;
+        font-size: var(--font-size-xl);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    
+    .metric-value.positive {
+        color: var(--color-success);
+    }
+    
+    .metric-value.negative {
+        color: var(--color-danger);
+    }
+    
+    .trend-indicator {
+        font-size: var(--font-size-sm);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-1);
+    }
+    
+    .metric-chart {
+        height: 80px;
+        display: flex;
+        align-items: flex-end;
+    }
+    
+    .chart-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .chart-bar {
+        flex: 1;
+        background-color: var(--color-primary-300);
+        border-radius: var(--radius) var(--radius) 0 0;
+    }
+    
+    .chart-line {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .chart-line svg {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .chart-line path {
+        fill: none;
+        stroke: var(--color-primary);
+        stroke-width: 2;
+    }
+    
+    .sentiment-faces {
+        display: flex;
+        justify-content: space-between;
+        font-size: 2.5rem;
+        color: var(--color-gray-400);
+        padding: var(--spacing-4) 0;
+    }
+    
+    .sentiment-faces i.active {
+        opacity: 1;
+    }
+
+    .news-sentiment-section {
+        margin-bottom: var(--spacing-8);
+    }
+    
+    .news-sentiment-section h2 {
+        margin-bottom: var(--spacing-4);
+    }
+    
+    .news-container {
+        margin-top: var(--spacing-4);
+    }
+    
+    .news-item {
+        padding: var(--spacing-3);
+        border-bottom: 1px solid var(--color-gray-200);
+    }
+    
+    .news-item:last-child {
+        border-bottom: none;
+    }
+    
+    .news-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-2);
+    }
+    
+    .news-item h4 {
+        margin: 0;
+        font-size: var(--font-size-md);
+        display: flex;
+        align-items: center;
+        flex: 1;
+    }
+    
+    .news-item p {
+        margin: 0 0 var(--spacing-2) 0;
+        font-size: var(--font-size-sm);
+        color: var(--color-gray-700);
+        line-height: 1.5;
+    }
+    
+    .news-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: var(--font-size-xs);
+        color: var(--color-gray-500);
+    }
+    
+    .news-link {
+        color: var(--color-primary);
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .news-link:hover {
+        text-decoration: underline;
+    }
+    
+    .news-source {
+        font-style: italic;
+    }
+
+    .ticker-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--color-primary-600);
+        color: white;
+        padding: 0.15rem 0.4rem;
+        border-radius: var(--radius);
+        font-size: var(--font-size-xs);
+        font-weight: bold;
+        margin-right: var(--spacing-2);
+        letter-spacing: 0.5px;
+    }
+    
+    .news-sentiment {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-1);
+        padding: 0.2rem 0.5rem;
+        border-radius: var(--radius);
+        color: white;
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+    }
+    
+    .news-sentiment.positive {
+        background-color: var(--color-success);
+    }
+    
+    .news-sentiment.neutral {
+        background-color: var(--color-warning);
+    }
+    
+    .news-sentiment.negative {
+        background-color: var(--color-danger);
+    }
+    
+    .sentiment-score {
+        font-weight: 700;
+    }
+    
+    .loading-spinner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--spacing-4);
+    }
+    
+    .no-data, .error-message {
+        text-align: center;
+        padding: var(--spacing-4);
+        color: var(--color-gray-500);
+    }
+    
+    .error-message {
+        color: var(--color-danger);
+    }
+</style>
+{% endblock %} 

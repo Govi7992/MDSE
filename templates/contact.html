@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us - Investment Risk Advisor{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1>Contact Us</h1>
+        <p class="subtitle">We're here to help with any questions about our investment recommendations.</p>
+    </div>
+    
+    <div class="contact-grid">
+        <div class="card contact-form-card">
+            <h2>Send Us a Message</h2>
+            <form class="contact-form">
+                <div class="form-group">
+                    <label for="name" class="form-label">Your Name</label>
+                    <input type="text" id="name" name="name" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" id="email" name="email" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="subject" class="form-label">Subject</label>
+                    <input type="text" id="subject" name="subject" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="message" class="form-label">Message</label>
+                    <textarea id="message" name="message" class="form-control" rows="5" required></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Send Message</button>
+            </form>
+        </div>
+        
+        <div class="contact-info-container">
+            <div class="card contact-info-card">
+                <h2>Contact Information</h2>
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div class="contact-text">
+                        <h3>Address</h3>
+                        <p>123 Financial Street<br>Montreal, QC, CA</p>
+                    </div>
+                </div>
+                
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <i class="fas fa-phone"></i>
+                    </div>
+                    <div class="contact-text">
+                        <h3>Phone</h3>
+                        <p>(555) 123-4567</p>
+                    </div>
+                </div>
+                
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <div class="contact-text">
+                        <h3>Email</h3>
+                        <p>contact@moneybuddy.com</p>
+                    </div>
+                </div>
+                
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="contact-text">
+                        <h3>Hours</h3>
+                        <p>Monday - Friday: 9am - 5pm<br>Saturday - Sunday: Closed</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card faq-card">
+                <h2>Frequently Asked Questions</h2>
+                <div class="faq-item">
+                    <h3>How do you determine my risk profile?</h3>
+                    <p>We use a comprehensive questionnaire to assess your financial situation, goals, and risk tolerance. Our algorithm analyzes your responses to determine the most appropriate risk profile.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h3>Are the recommendations personalized?</h3>
+                    <p>Yes, all recommendations are tailored to your specific risk profile and financial goals. We consider multiple factors to provide the most suitable investment strategy.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h3>How often should I retake the assessment?</h3>
+                    <p>We recommend reassessing your risk profile whenever you experience significant life changes, such as marriage, having children, or approaching retirement.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .contact-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-6);
+        margin-bottom: var(--spacing-8);
+    }
+    
+    .contact-form-card {
+        height: fit-content;
+    }
+    
+    .contact-info-container {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-6);
+    }
+    
+    .contact-info-item {
+        display: flex;
+        gap: var(--spacing-4);
+        margin-bottom: var(--spacing-6);
+    }
+    
+    .contact-info-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .contact-icon {
+        width: 48px;
+        height: 48px;
+        background-color: rgba(37, 99, 235, 0.1);
+        color: var(--color-primary);
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--font-size-xl);
+    }
+    
+    .contact-text h3 {
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-1);
+    }
+    
+    .contact-text p {
+        color: var(--color-gray-600);
+    }
+    
+    .faq-item {
+        margin-bottom: var(--spacing-4);
+        padding-bottom: var(--spacing-4);
+        border-bottom: 1px solid var(--color-gray-200);
+    }
+    
+    .faq-item:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+    
+    .faq-item h3 {
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-2);
+        color: var(--color-gray-800);
+    }
+    
+    .faq-item p {
+        color: var(--color-gray-600);
+    }
+    
+    @media (max-width: 768px) {
+        .contact-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const contactForm = document.querySelector('.contact-form');
+        
+        if (contactForm) {
+            contactForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(contactForm);
+                const formValues = Object.fromEntries(formData.entries());
+                
+                contactForm.reset();
+
+                alert('Thank you for your message! Our team will contact you soon.');
+            });
+        }
+    });
+</script>
+{% endblock %} 

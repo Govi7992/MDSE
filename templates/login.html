@@ -1,92 +1,196 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Investment Risk Assessment</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-</head>
-<body class="bg-light">
-    <div class="container">
-        <div class="row justify-content-center mt-5">
-            <div class="col-md-6">
-                <div class="card shadow">
-                    <div class="card-body text-center p-5">
-                        <h1 class="h3 mb-4">Welcome Back</h1>
-                        <p class="text-muted mb-4">Please sign in to continue to the Risk Assessment Tool</p>
-                        
-                        <!-- Regular Login Form -->
-                        <form method="POST" class="mb-4">
-                            <div class="form-group mb-3">
-                                <input type="email" name="email" class="form-control" placeholder="Email address" required>
-                            </div>
-                            <div class="form-group mb-3">
-                                <input type="password" name="password" class="form-control" placeholder="Password" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100 mb-3">Sign In</button>
-                        </form>
+{% extends "base.html" %}
 
-                        <div class="divider d-flex align-items-center my-4">
-                            <p class="text-center fw-bold mx-3 mb-0 text-muted">OR</p>
-                        </div>
+{% block title %}Log In - Investment Risk Advisor{% endblock %}
 
-                        <!-- Google Sign In Button -->
-                        <div id="g_id_onload"
-                             data-client_id="{{ google_client_id }}"
-                             data-context="signin"
-                             data-ux_mode="popup"
-                             data-callback="handleCredentialResponse"
-                             data-auto_select="true">
-                        </div>
-
-                        <div class="g_id_signin"
-                             data-type="standard"
-                             data-shape="rectangular"
-                             data-theme="outline"
-                             data-text="signin_with"
-                             data-size="large"
-                             data-logo_alignment="left">
-                        </div>
-
-                        <div class="mt-4">
-                            <p class="mb-0">Don't have an account? 
-                                <a href="{{ url_for('signup') }}" class="text-primary">Sign up</a>
-                            </p>
-                        </div>
-                    </div>
+{% block content %}
+<div class="container">
+    <div class="auth-container">
+        <div class="card auth-card">
+            <h1 class="auth-title">Log In</h1>
+            
+            {% if error %}
+            <div class="alert alert-danger">
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            <div class="social-login">
+                <button id="google-login" class="btn btn-social">
+                    <img src="{{ url_for('static', filename='images/google-logo.svg') }}" alt="Google logo">
+                    Sign in with Google
+                </button>
+            </div>
+            
+            <div class="divider">
+                <span>or sign in with email</span>
+            </div>
+            
+            <form action="{{ url_for('login') }}" method="post" class="auth-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" id="email" name="email" class="form-control" required>
                 </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" name="password" class="form-control" required>
+                </div>
+                
+                <div class="form-actions">
+                    <a href="#" class="forgot-password">Forgot password?</a>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">Log In</button>
+            </form>
+            
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a></p>
             </div>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <script>
+{% block extra_css %}
+<style>
+    .auth-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 70vh;
+    }
+    
+    .auth-card {
+        width: 100%;
+        max-width: 450px;
+    }
+    
+    .auth-title {
+        text-align: center;
+        margin-bottom: var(--spacing-6);
+    }
+    
+    .alert {
+        padding: var(--spacing-4);
+        border-radius: var(--radius);
+        margin-bottom: var(--spacing-4);
+    }
+    
+    .alert-danger {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    
+    .social-login {
+        margin-bottom: var(--spacing-4);
+    }
+    
+    .btn-social {
+        width: 100%;
+        background-color: var(--color-white);
+        border: 1px solid var(--color-gray-300);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--spacing-3);
+    }
+    
+    .btn-social img {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .divider {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: var(--spacing-6) 0;
+        color: var(--color-gray-500);
+    }
+    
+    .divider::before,
+    .divider::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid var(--color-gray-300);
+    }
+    
+    .divider span {
+        padding: 0 var(--spacing-3);
+        font-size: var(--font-size-sm);
+    }
+    
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: var(--spacing-4);
+    }
+    
+    .forgot-password {
+        font-size: var(--font-size-sm);
+        color: var(--color-primary);
+        text-decoration: none;
+    }
+    
+    .btn-block {
+        width: 100%;
+    }
+    
+    .auth-footer {
+        text-align: center;
+        margin-top: var(--spacing-6);
+        color: var(--color-gray-600);
+        font-size: var(--font-size-sm);
+    }
+    
+    .auth-footer a {
+        color: var(--color-primary);
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const googleLoginBtn = document.getElementById('google-login');
+        if (googleLoginBtn) {
+            googleLoginBtn.addEventListener('click', function() {
+                google.accounts.id.initialize({
+                    client_id: '{{ google_client_id }}',
+                    callback: handleCredentialResponse
+                });
+                
+                google.accounts.id.prompt();
+            });
+        }
+        
         function handleCredentialResponse(response) {
-            // Send the ID token to your server
-            fetch('/login', {
+            fetch('{{ url_for("login") }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    token: response.credential
-                })
+                body: JSON.stringify({ token: response.credential })
             })
             .then(response => {
-                if (response.ok) {
-                    window.location.href = '/questionnaire';
+                if (response.redirected) {
+                    window.location.href = response.url;
                 } else {
-                    throw new Error('Login failed');
+                    return response.json();
+                }
+            })
+            .then(data => {
+                if (data && data.error) {
+                    alert('Authentication error: ' + data.error);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Login failed. Please try again.');
             });
         }
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    });
+</script>
+{% endblock %}
