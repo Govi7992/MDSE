@@ -103,7 +103,8 @@
 </div>
 
 <script>
-    fetch('/api/market-news')
+    tickers = "AAPL,MSFT,AMZN,GOOGL,META,BRK-B,JPM,JNJ,PG,V,AMD,NVDA,PYPL,ADBE,CRM,XOM,CVX,PFE,BAC,WMT"
+    fetch(`/api/market-news?tickers=${tickers}`)
         .then(response => response.json())
         .then(data => {
             const newsContainer = document.getElementById('news-sentiment-container');

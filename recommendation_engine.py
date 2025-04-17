@@ -194,7 +194,7 @@ class RecommendationEngine:
                 {
                     'ticker': 'KO',
                     'name': 'Coca-Cola Company',
-                    'allocation': 0.8,
+                    'allocation': 0.08,
                     'reason': 'Consistent dividend payer with low volatility'
                 },
                 {

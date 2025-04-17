@@ -605,8 +605,8 @@ def market_sentiment():
             'description': 'Technical indicators suggest upward momentum in major indices.'
         }
     }
-    
-    return render_template('market_sentiment.html', sentiment_data=sentiment_data)
+    tickers = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'BRK-B', 'JPM', 'JNJ', 'PG', 'V','AMD', 'NVDA', 'PYPL', 'ADBE', 'CRM','XOM', 'CVX', 'PFE', 'BAC', 'WMT']
+    return render_template('market_sentiment.html', sentiment_data=sentiment_data,tickers=tickers)
 
 @app.route('/contact')
 def contact():
@@ -670,97 +670,31 @@ def debug_question_api():
         }
     })
 
-@app.route('/api/market-news')
+@app.route('/api/market-news', methods=['GET'])
 def get_market_news():
-    """API endpoint to fetch latest market news."""
-    tickers = ["NVDA", "AMZN", "TSLA", "QQQ", "VWO", "VBK", "HYG"]
+    tickers_param = request.args.get('tickers', '')
+    tickers = [t.strip().upper() for t in tickers_param.split(',') if t.strip()]
 
-    try:
-        from recommendation_engine import RecommendationEngine
-        engine = RecommendationEngine()
+    if not tickers:
+        logger.info("No tickers provided to /api/market-news → returning empty list")
+        return jsonify({"news": []})
 
-        all_news = []
-        
-        for ticker in tickers:
-            try:
-                logger.info(f"Fetching news for {ticker}")
+    all_news = []
+    for ticker in tickers:
+        try:
+            logger.info(f"Fetching news for {ticker}")
+            ticker_news = recommendation_engine.fetch_news(ticker)
+            logger.info(f"Got {len(ticker_news)} items for {ticker}")
 
-                ticker_news = engine.fetch_news(ticker)
+            for item in ticker_news:
+                art = item.copy()
+                art['ticker'] = ticker
+                all_news.append(art)
+        except Exception as e:
+            logger.warning(f"Error fetching news for {ticker}: {e}")
 
-                logger.info(f"Got {len(ticker_news) if ticker_news else 0} news items for {ticker}")
-                
-                if ticker_news:
-                    for item in ticker_news:
-                        if isinstance(item, dict):
-                            item['ticker'] = ticker
-                    
-                    all_news.extend(ticker_news)
-            except Exception as e:
-                logger.warning(f"Error fetching news for {ticker}: {e}")
-
-        if all_news and len(all_news) > 0:
-            logger.info(f"Successfully retrieved {len(all_news)} news items from recommendation engine")
-            return jsonify({"news": all_news})
-            
-    except Exception as e:
-        logger.error(f"Error using recommendation engine for news: {str(e)}")
-        logger.debug(traceback.format_exc())
-    logger.warning("All news fetch methods failed, using hardcoded news")
-    
-    news_items = [
-        {
-            "title": "NVIDIA Reports Record Quarterly Revenue",
-            "description": "NVIDIA announced record revenue for the quarter, driven by strong demand for AI chips and data center solutions.",
-            "source": "Tech Daily",
-            "url": "#",
-            "ticker": "NVDA"
-        },
-        {
-            "title": "Amazon Expands Global E-Commerce Operations",
-            "description": "Amazon is expanding its global footprint with new fulfillment centers and delivery options in emerging markets.",
-            "source": "Market Watch",
-            "url": "#",
-            "ticker": "AMZN"
-        },
-        {
-            "title": "Tesla Unveils Next Generation Electric Vehicle",
-            "description": "Tesla has revealed its latest electric vehicle model with extended range and advanced autonomous features.",
-            "source": "Auto News",
-            "url": "#",
-            "ticker": "TSLA"
-        },
-        {
-            "title": "QQQ ETF Reaches New High on Tech Performance",
-            "description": "The Invesco QQQ Trust ETF has reached a new all-time high as technology stocks continue to outperform the broader market.",
-            "source": "ETF Daily",
-            "url": "#",
-            "ticker": "QQQ"
-        },
-        {
-            "title": "Emerging Markets Show Strong Potential for Growth",
-            "description": "Economic forecasts indicate robust growth potential in emerging markets, with several regions outpacing developed economies.",
-            "source": "Global Markets Today",
-            "url": "#",
-            "ticker": "VWO"
-        },
-        {
-            "title": "Small-Cap Growth Stocks Outperform in Recent Rally",
-            "description": "Small-cap growth companies have shown strong performance in the recent market rally, outpacing large-cap counterparts.",
-            "source": "Small Cap Investor",
-            "url": "#", 
-            "ticker": "VBK"
-        },
-        {
-            "title": "High Yield Bonds Show Resilience Amid Rate Concerns",
-            "description": "The high-yield bond market has demonstrated resilience despite ongoing concerns about interest rate fluctuations.",
-            "source": "Bond Market Review",
-            "url": "#",
-            "ticker": "HYG"
-        }
-    ]
-    
-    logger.info(f"Providing {len(news_items)} hardcoded news items")
-    return jsonify({"news": news_items})
+    logger.info(f"Returning {len(all_news)} articles for requested tickers")
+    return jsonify({"news": all_news})
 
 @app.route('/api/market-sentiment')
 def get_market_sentiment_data():

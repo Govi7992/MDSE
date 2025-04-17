@@ -7,7 +7,7 @@
     <div class="page-header">
         <h1>Your Investment Recommendations</h1>
         <p class="subtitle">Personalized investment strategy based on your {{ selected_profile }} risk profile.</p>
-                </div>
+    </div>
     
     <div class="risk-profile-container">
         <div class="risk-meter">
@@ -29,7 +29,7 @@
             <h2>Recommended Asset Allocation</h2>
             <div class="chart-container">
                 <canvas id="allocationChart"></canvas>
-        </div>
+            </div>
             <div class="allocation-legend">
                 {% for asset, allocation in recommendations.asset_allocation.items() %}
                 <div class="allocation-item">
@@ -38,8 +38,8 @@
                     <div class="allocation-value">{{ allocation }}%</div>
                 </div>
                 {% endfor %}
+            </div>
         </div>
-    </div>
 
         <div class="card market-sentiment-card">
             <h2>Market Sentiment</h2>
@@ -56,7 +56,6 @@
                 <div class="sentiment-value">{{ recommendations.market_sentiment.score }}</div>
             </div>
             <p class="sentiment-analysis">{{ recommendations.market_sentiment.analysis }}</p>
-
             <a href="{{ url_for('market_sentiment') }}" class="view-full-analysis">
                 View Complete Market Analysis <i class="fas fa-arrow-right"></i>
             </a>
@@ -70,12 +69,12 @@
                 <thead>
                     <tr>
                         <th>Ticker</th>
-                                <th>Name</th>
-                                <th>Allocation</th>
+                        <th>Name</th>
+                        <th>Allocation</th>
                         <th>Reason</th>
                         <th>Latest News</th>
-                            </tr>
-                        </thead>
+                    </tr>
+                </thead>
                 <tbody id="investments-tbody">
                     <tr>
                         <td colspan="5" class="loading-cell">
@@ -83,10 +82,10 @@
                                 <i class="fas fa-spinner fa-spin"></i>
                                 <p>Loading investments and news...</p>
                             </div>
-                                    </td>
-                                </tr>
-                        </tbody>
-                    </table>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -527,280 +526,172 @@
 {% endblock %}
 
 {% block extra_js %}
-<script id="allocation-data" type="application/json">
+  <!-- 1) Embed the real investments array from backend -->
+  <script id="investments-data" type="application/json">
+    {{ recommendations.investments|tojson }}
+  </script>
+
+  <script id="allocation-data" type="application/json">
     {
-        {% for asset, allocation in recommendations.asset_allocation.items() %}
-            "{{ asset }}": {{ allocation }}{% if not loop.last %},{% endif %}
-        {% endfor %}
+      {% for asset, allocation in recommendations.asset_allocation.items() %}
+        "{{ asset }}": {{ allocation }}{% if not loop.last %},{% endif %}
+      {% endfor %}
     }
-</script>
+  </script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-
-        const riskIndicator = document.querySelector('.risk-meter-indicator');
-        if (riskIndicator) {
-            const profile = riskIndicator.getAttribute('data-profile');
-            let position = '50%';
-            if (profile === 'Conservative') {
-                position = '16%';
-            } else if (profile === 'Moderate Conservative' || profile === 'moderate_conservative') {
-                position = '33%';
-            } else if (profile === 'Moderate' || profile === 'moderate') {
-                position = '50%';
-            } else if (profile === 'Moderate Aggressive' || profile === 'moderate_aggressive') {
-                position = '67%';
-            } else if (profile === 'Aggressive' || profile === 'aggressive') {
-                position = '84%';
-            }
-            
-            riskIndicator.style.left = position;
-        }
-
-        const sentimentIndicator = document.querySelector('.sentiment-indicator');
-        if (sentimentIndicator) {
-            const score = sentimentIndicator.getAttribute('data-score');
-            sentimentIndicator.style.left = score + '%';
-        }
-        
-        const allocationColors = document.querySelectorAll('.allocation-color');
-        allocationColors.forEach(element => {
-            const index = element.getAttribute('data-index');
-            element.style.backgroundColor = `var(--color-${index})`;
-        });
-
-        const allocationDataElement = document.getElementById('allocation-data');
-        const allocationData = JSON.parse(allocationDataElement.textContent);
-
-        const labels = Object.keys(allocationData);
-        const data = Object.values(allocationData);
-        const colors = [
-            '#3b82f6', // Blue
-            '#10b981', // Green
-            '#f59e0b', // Yellow
-            '#ef4444', // Red
-            '#8b5cf6', // Purple
-            '#ec4899'  // Pink
-        ];
-        
-        const ctx = document.getElementById('allocationChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: colors.slice(0, labels.length),
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.raw || 0;
-                                return `${label}: ${value}%`;
-                            }
-                        }
-                    }
-                },
-                cutout: '70%'
-            }
-        });
-
-        document.querySelectorAll('.sentiment-fill').forEach(el => {
-            const width = el.getAttribute('data-width');
-            el.style.width = width + '%';
-        });
-    });
-</script>
-
-<script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const investments = [
-            {
-                ticker: "NVDA",
-                name: "NVIDIA Corporation",
-                allocation: "15.0%",
-                reason: "High-growth technology company in AI and computing"
-            },
-            {
-                ticker: "AMZN",
-                name: "Amazon.com, Inc.",
-                allocation: "15.0%",
-                reason: "E-commerce and cloud computing leader with growth potential"
-            },
-            {
-                ticker: "TSLA",
-                name: "Tesla, Inc.",
-                allocation: "10.0%",
-                reason: "Electric vehicle pioneer with disruptive technology"
-            },
-            {
-                ticker: "QQQ",
-                name: "Invesco QQQ Trust (NASDAQ-100 Index)",
-                allocation: "20.0%",
-                reason: "Technology-focused growth ETF"
-            },
-            {
-                ticker: "VWO",
-                name: "Vanguard Emerging Markets ETF",
-                allocation: "15.0%",
-                reason: "Emerging markets exposure for higher growth potential"
-            },
-            {
-                ticker: "VBK",
-                name: "Vanguard Small-Cap Growth ETF",
-                allocation: "15.0%",
-                reason: "Small-cap growth companies with high return potential"
-            },
-            {
-                ticker: "HYG",
-                name: "iShares iBoxx $ High Yield Corporate Bond ETF",
-                allocation: "10.0%",
-                reason: "Higher yield potential for aggressive portfolios"
+      // --- Risk meter indicator ---
+      const riskIndicator = document.querySelector('.risk-meter-indicator');
+      if (riskIndicator) {
+        const profile = riskIndicator.getAttribute('data-profile');
+        let position = '50%';
+        if (profile === 'Conservative') position = '16%';
+        else if (profile === 'Moderate Conservative') position = '33%';
+        else if (profile === 'Moderate') position = '50%';
+        else if (profile === 'Moderate Aggressive') position = '67%';
+        else if (profile === 'Aggressive') position = '84%';
+        riskIndicator.style.left = position;
+      }
+
+      // --- Market sentiment indicator ---
+      document.querySelectorAll('.sentiment-fill').forEach(el => {
+        const width = el.getAttribute('data-width');
+        el.style.width = width + '%';
+      });
+      const sentimentIndicator = document.querySelector('.sentiment-indicator');
+      if (sentimentIndicator) {
+        const score = sentimentIndicator.getAttribute('data-score');
+        sentimentIndicator.style.left = score + '%';
+      }
+
+      // --- Allocation chart setup ---
+      const allocationData = JSON.parse(document.getElementById('allocation-data').textContent);
+      const labels = Object.keys(allocationData);
+      const data = Object.values(allocationData);
+      const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+      const ctx = document.getElementById('allocationChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{ data, backgroundColor: colors.slice(0, labels.length), borderWidth:0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: {
+            legend:{ display:false },
+            tooltip:{
+              callbacks:{
+                label: ctx => `${ctx.label}: ${ctx.raw}%`
+              }
             }
-        ];
-        
-        fetch('/api/market-news')
-            .then(response => response.json())
-            .then(data => {
-                console.log("News API data received:", data);
+          }
+        }
+      });
 
-                const newsMap = {};
-                if (data.news && data.news.length > 0) {
-                    data.news.forEach(item => {
-                        if (item.ticker) {
-                            if (!newsMap[item.ticker]) {
-                                newsMap[item.ticker] = [];
-                            }
+      // --- Color legend dots ---
+      document.querySelectorAll('.allocation-color').forEach(el => {
+        el.style.backgroundColor = `var(--color-${el.dataset.index})`;
+      });
 
-                            newsMap[item.ticker].push({
-                                title: item.title || 'News headline',
-                                url: item.url || '#',
-                                source: item.source || 'News source'
-                            });
-                        }
-                    });
-                }
-                
-                console.log("Organized news by ticker:", newsMap);
+      // --- Investments & news ---
+      const investments = JSON.parse(document.getElementById('investments-data').textContent);
+      const tickers = investments.map(i => i.ticker).join(',');
 
-                const tbody = document.getElementById('investments-tbody');
-                tbody.innerHTML = '';
-                
-                investments.forEach(investment => {
-                    const news = newsMap[investment.ticker] || [];
-
-                    const newsToShow = news.slice(0, 3);
-                    
-                    const newsCell = newsToShow.length > 0 ? 
-                        newsToShow.map(item => `
-                            <div class="news-item-compact">
-                                <a href="${item.url}" target="_blank" class="news-title-compact">
-                                    ${item.title}
-                                </a>
-                                <span class="news-source-compact">${item.source}</span>
-                            </div>
-                        `).join('') : 
-                        '<div class="no-news">No recent news</div>';
-
-                    const viewMoreLink = news.length > 3 ? 
-                        `<div class="view-more-news">
-                            <a href="#" onclick="showAllNews('${investment.ticker}', event)">
-                                View ${news.length - 3} more news items
-                            </a>
-                        </div>` : '';
-                    
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>${investment.ticker}</td>
-                            <td>${investment.name}</td>
-                            <td>${investment.allocation}</td>
-                            <td>${investment.reason}</td>
-                            <td class="news-cell">
-                                ${newsCell}
-                                ${viewMoreLink}
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                window.allNewsData = newsMap;
-            })
-            .catch(error => {
-                console.error('Error fetching news:', error);
-                const tbody = document.getElementById('investments-tbody');
-
-                tbody.innerHTML = '';
-                investments.forEach(investment => {
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>${investment.ticker}</td>
-                            <td>${investment.name}</td>
-                            <td>${investment.allocation}</td>
-                            <td>${investment.reason}</td>
-                            <td class="news-cell">
-                                <div class="error-message">Error loading news</div>
-                            </td>
-                        </tr>
-                    `;
-                });
+      fetch(`/api/market-news?tickers=${tickers}`)
+        .then(res => res.json())
+        .then(data => {
+          const newsMap = {};
+          (data.news||[]).forEach(item => {
+            if (!newsMap[item.ticker]) newsMap[item.ticker] = [];
+            newsMap[item.ticker].push({
+              title: item.title, url: item.url, source: item.source
             });
+          });
+
+          const tbody = document.getElementById('investments-tbody');
+          tbody.innerHTML = '';
+
+          investments.forEach(inv => {
+            const news = newsMap[inv.ticker]||[];
+            const preview = news.slice(0,3).map(n => `
+              <div class="news-item-compact">
+                <a href="${n.url}" target="_blank" class="news-title-compact">${n.title}</a>
+                <span class="news-source-compact">${n.source}</span>
+              </div>
+            `).join('') || '<div class="no-news">No recent news</div>';
+            const more = news.length>3 ? `
+              <div class="view-more-news">
+                <a href="#" onclick="showAllNews('${inv.ticker}', event)">
+                  View ${news.length-3} more
+                </a>
+              </div>
+            ` : '';
+
+            tbody.innerHTML += `
+              <tr>
+                <td>${inv.ticker}</td>
+                <td>${inv.name}</td>
+                <td>${inv.allocation}%</td>
+                <td>${inv.reason}</td>
+                <td class="news-cell">${preview}${more}</td>
+              </tr>
+            `;
+          });
+
+          window.allNewsData = newsMap;
+        })
+        .catch(err => {
+          console.error('Error loading news', err);
+          const tbody = document.getElementById('investments-tbody');
+          tbody.innerHTML = '';
+          investments.forEach(inv => {
+            tbody.innerHTML += `
+              <tr>
+                <td>${inv.ticker}</td>
+                <td>${inv.name}</td>
+                <td>${inv.allocation}%</td>
+                <td>${inv.reason}</td>
+                <td class="news-cell"><div class="error-message">Error loading news</div></td>
+              </tr>
+            `;
+          });
+        });
     });
 
-    function showAllNews(ticker, event) {
-        event.preventDefault();
-        
-        const news = window.allNewsData[ticker] || [];
-        if (news.length === 0) return;
+    function showAllNews(ticker, e) {
+      e.preventDefault();
+      const news = window.allNewsData[ticker] || [];
+      if (!news.length) return;
 
-        const modalHtml = `
-            <div class="news-modal-backdrop">
-                <div class="news-modal">
-                    <div class="news-modal-header">
-                        <h3>All News for ${ticker}</h3>
-                        <button class="close-modal">&times;</button>
-                    </div>
-                    <div class="news-modal-body">
-                        ${news.map(item => `
-                            <div class="news-item-full">
-                                <h4 class="news-title-full">
-                                    <a href="${item.url}" target="_blank">
-                                        ${item.title}
-                                    </a>
-                                </h4>
-                                <div class="news-meta-full">
-                                    <span class="news-source-full">${item.source}</span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
+      const modal = document.createElement('div');
+      modal.innerHTML = `
+        <div class="news-modal-backdrop">
+          <div class="news-modal">
+            <div class="news-modal-header">
+              <h3>All News for ${ticker}</h3>
+              <button class="close-modal">&times;</button>
             </div>
-        `;
-
-        const modalContainer = document.createElement('div');
-        modalContainer.innerHTML = modalHtml;
-        document.body.appendChild(modalContainer);
-
-        document.querySelector('.close-modal').addEventListener('click', () => {
-            document.body.removeChild(modalContainer);
-        });
-        
-        document.querySelector('.news-modal-backdrop').addEventListener('click', (e) => {
-            if (e.target === document.querySelector('.news-modal-backdrop')) {
-                document.body.removeChild(modalContainer);
-            }
-        });
+            <div class="news-modal-body">
+              ${news.map(n=>`
+                <div class="news-item-full">
+                  <h4 class="news-title-full"><a href="${n.url}" target="_blank">${n.title}</a></h4>
+                  <div class="news-meta-full"><span class="news-source-full">${n.source}</span></div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.querySelector('.close-modal').addEventListener('click', ()=> modal.remove());
+      modal.querySelector('.news-modal-backdrop').addEventListener('click', ev => {
+        if (ev.target === modal.querySelector('.news-modal-backdrop')) modal.remove();
+      });
     }
-</script>
+  </script>
 {% endblock %}
